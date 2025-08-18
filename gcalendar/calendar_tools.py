@@ -242,7 +242,8 @@ async def create_event(
     attendees: Optional[List[str]] = None,
     timezone: Optional[str] = None,
     attachments: Optional[List[str]] = None,
-    add_google_meet: bool = False,
+    add_google_meet: bool = True,
+    send_updates: Optional[str] = 'all',
 ) -> str:
     """
     Creates a new event.
@@ -259,6 +260,7 @@ async def create_event(
         timezone (Optional[str]): Timezone (e.g., "America/New_York").
         attachments (Optional[List[str]]): List of Google Drive file URLs or IDs to attach to the event.
         add_google_meet (bool): Whether to add a Google Meet video conference to the event. Defaults to False.
+        send_updates (Optional[str]): How to send updates to attendees. Can be 'all', 'externalOnly', or None (default: 'all').
 
     Returns:
         str: Confirmation message of the successful event creation with event link.
@@ -351,14 +353,16 @@ async def create_event(
         created_event = await asyncio.to_thread(
             lambda: service.events().insert(
                 calendarId=calendar_id, body=event_body, supportsAttachments=True,
-                conferenceDataVersion=1 if add_google_meet else 0
+                conferenceDataVersion=1 if add_google_meet else 0,
+                sendUpdates=send_updates.lower() if send_updates else False
             ).execute()
         )
     else:
         created_event = await asyncio.to_thread(
             lambda: service.events().insert(
                 calendarId=calendar_id, body=event_body,
-                conferenceDataVersion=1 if add_google_meet else 0
+                conferenceDataVersion=1 if add_google_meet else 0,
+                sendUpdates=send_updates.lower() if send_updates else False
             ).execute()
         )
     link = created_event.get("htmlLink", "No link available")
