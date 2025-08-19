@@ -536,6 +536,382 @@ When calling a tool:
 
 ---
 
+## Google Sheets: Expanded Tools and Request Templates
+
+This server now exposes a broader set of Google Sheets tools for rich sheet creation and manipulation. Highlights:
+
+- Values API: batch_get_sheet_values, append_sheet_values, batch_update_sheet_values
+- Structure & creation: create_spreadsheet_detailed (locale/timeZone, initial_values, post_create_requests), create_sheet, duplicate_sheet, delete_sheet, move_sheet
+- Formatting & layout: format_cells, update_borders, set_sheet_properties, merge_cells, unmerge_cells, sort_range, auto_resize_dimensions
+- Names, validation, protections: add_named_range, delete_named_range, set_data_validation, add_protected_range, delete_protected_range
+- Visuals & analysis: add_chart, create_pivot_table, add_conditional_format_rule, update_conditional_format_rule, delete_conditional_format_rule, create_filter_view, delete_filter_view
+- Utilities: find_replace, copy_paste, import_csv_to_sheet
+- Escape hatch: sheets_batch_update_requests for any batchUpdate request
+- More tools: insert_dimension, delete_dimension, move_dimension, set_basic_filter, clear_basic_filter, add_banding, update_banding, delete_banding, update_named_range, update_protected_range, update_filter_view, update_chart_spec, delete_embedded_object, set_spreadsheet_properties, batch_get_values_by_data_filter, batch_update_values_by_data_filter
+
+Quick start: create a detailed spreadsheet
+
+```json
+{
+  "title": "Project Tracker",
+  "sheets": [
+    {"properties": {"title": "Tasks"}},
+    {"properties": {"title": "Summary"}}
+  ],
+  "initial_values": {
+    "Tasks": [["Task","Assignee","Status","Due"],["Spec v1","Alex","Not Started","8/20/2025"]]
+  },
+  "post_create_requests": [
+    {
+      "updateSheetProperties": {
+        "properties": {"sheetId": 0, "gridProperties": {"frozenRowCount": 1}},
+        "fields": "gridProperties.frozenRowCount"
+      }
+    }
+  ]
+}
+```
+
+Common structure helpers
+
+- GridRange
+```json
+{"sheetId": 0, "startRowIndex": 0, "endRowIndex": 10, "startColumnIndex": 0, "endColumnIndex": 4}
+```
+- CellFormat (subset)
+```json
+{"backgroundColor": {"red":0.95,"green":0.95,"blue":0.95}, "textFormat": {"bold": true}}
+```
+
+Request templates
+
+- Header formatting (bold + gray background)
+```json
+{
+  "grid_range": {"sheetId": 0, "startRowIndex": 0, "endRowIndex": 1},
+  "cell_format": {"backgroundColor": {"red":0.95,"green":0.95,"blue":0.95}, "textFormat": {"bold": true}},
+  "fields": "userEnteredFormat(backgroundColor,textFormat)"
+}
+```
+
+- Borders (thin outer border)
+```json
+{
+  "grid_range": {"sheetId": 0, "startRowIndex": 0, "endRowIndex": 10, "startColumnIndex": 0, "endColumnIndex": 4},
+  "top":    {"style": "SOLID", "width": 1, "color": {"red":0, "green":0, "blue":0}},
+  "bottom": {"style": "SOLID", "width": 1, "color": {"red":0, "green":0, "blue":0}},
+  "left":   {"style": "SOLID", "width": 1, "color": {"red":0, "green":0, "blue":0}},
+  "right":  {"style": "SOLID", "width": 1, "color": {"red":0, "green":0, "blue":0}}
+}
+```
+
+- Freeze header row
+```json
+{
+  "sheet_id": 0,
+  "grid_properties": {"frozenRowCount": 1}
+}
+```
+
+- Data validation (dropdown from explicit list)
+```json
+{
+  "grid_range": {"sheetId": 0, "startRowIndex": 1, "startColumnIndex": 2, "endColumnIndex": 3},
+  "rule": {
+    "condition": {"type": "ONE_OF_LIST", "values": [{"userEnteredValue": "Not Started"},{"userEnteredValue": "In Progress"},{"userEnteredValue": "Done"}]},
+    "showCustomUi": true,
+    "strict": true
+  }
+}
+```
+
+- Conditional format (highlight overdue dates in column D)
+```json
+{
+  "rule": {
+    "ranges": [{"sheetId": 0, "startRowIndex": 1, "startColumnIndex": 3, "endColumnIndex": 4}],
+    "booleanRule": {
+      "condition": {"type": "CUSTOM_FORMULA", "values": [{"userEnteredValue": "=AND(D2<>\"\", D2<TODAY())"}]},
+      "format": {"backgroundColor": {"red": 1, "green": 0.9, "blue": 0.9}}
+    }
+  }
+}
+```
+
+- Named range (A2:C100)
+```json
+{"name": "tasks_table", "grid_range": {"sheetId": 0, "startRowIndex": 1, "endRowIndex": 100, "startColumnIndex": 0, "endColumnIndex": 3}}
+```
+
+- Protected range (lock header row)
+```json
+{
+  "description": "Lock Headers",
+  "grid_range": {"sheetId": 0, "startRowIndex": 0, "endRowIndex": 1},
+  "editors_emails": ["owner@example.com"],
+  "domain_users_can_edit": false
+}
+```
+
+- Filter view
+```json
+{
+  "title": "My Filter",
+  "grid_range": {"sheetId": 0, "startRowIndex": 0, "endRowIndex": 100, "startColumnIndex": 0, "endColumnIndex": 4},
+  "criteria": {
+    "2": {"condition": {"type": "TEXT_NOT_EQ", "values": [{"userEnteredValue": "Done"}]}}
+  }
+}
+```
+
+- Sort range by Status (column C)
+```json
+{
+  "grid_range": {"sheetId": 0, "startRowIndex": 1, "endRowIndex": 100, "startColumnIndex": 0, "endColumnIndex": 4},
+  "sort_specs": [{"dimensionIndex": 2, "sortOrder": "ASCENDING"}]
+}
+```
+
+- Chart (basic column chart)
+```json
+{
+  "chart_spec": {
+    "spec": {
+      "title": "Tasks by Status",
+      "basicChart": {
+        "chartType": "COLUMN",
+        "legendPosition": "RIGHT_LEGEND",
+        "axis": [{"position": "BOTTOM_AXIS"},{"position": "LEFT_AXIS"}],
+        "domains": [{"domain": {"sourceRange": {"sources": [{"sheetId": 0, "startRowIndex": 1, "endRowIndex": 10, "startColumnIndex": 2, "endColumnIndex": 3}]}}}],
+        "series": [{"series": {"sourceRange": {"sources": [{"sheetId": 0, "startRowIndex": 1, "endRowIndex": 10, "startColumnIndex": 0, "endColumnIndex": 1}]}}}]
+      }
+    }
+  },
+  "position": {"sheetId": 1, "overlayPosition": {"anchorCell": {"sheetId": 1, "rowIndex": 0, "columnIndex": 0}}}
+}
+```
+
+- Pivot table (anchor at Summary!A1)
+```json
+{
+  "source": {"sheetId": 0, "startRowIndex": 0, "endRowIndex": 100, "startColumnIndex": 0, "endColumnIndex": 4},
+  "anchor_cell": {"sheetId": 1, "rowIndex": 0, "columnIndex": 0},
+  "rows": [{"sourceColumnOffset": 2, "showTotals": true}],
+  "values": [{"summarizeFunction": "COUNTA", "sourceColumnOffset": 0}]
+}
+```
+
+- Copy/paste (transpose example)
+```json
+{
+  "source": {"sheetId": 0, "startRowIndex": 0, "endRowIndex": 1, "startColumnIndex": 0, "endColumnIndex": 4},
+  "destination": {"sheetId": 0, "startRowIndex": 2, "startColumnIndex": 0},
+  "paste_type": "PASTE_VALUES",
+  "paste_orientation": "TRANSPOSE"
+}
+```
+
+- CSV import (values inferred)
+```json
+{
+  "sheet_title": "Tasks",
+  "csv_text": "Task,Assignee,Status,Due\nSpec v1,Alex,Not Started,8/20/2025"
+}
+```
+
+- Generic batchUpdate escape hatch
+```json
+{
+  "requests": [
+    {"repeatCell": {"range": {"sheetId": 0, "startRowIndex": 0, "endRowIndex": 1}, "cell": {"userEnteredFormat": {"textFormat": {"bold": true}}}, "fields": "userEnteredFormat.textFormat"}},
+    {"updateSheetProperties": {"properties": {"sheetId": 0, "title": "Tasks"}, "fields": "title"}}
+  ]
+}
+```
+---
+
+## Google Slides: Expanded Tools and Request Templates
+
+New tools for richer Slides automation (all via batchUpdate under the hood):
+
+- Pages: create_slide, move_slides, duplicate_object, delete_object
+- Shapes & text: create_shape, insert_text, replace_all_text, update_text_style, update_paragraph_style, create_paragraph_bullets, delete_paragraph_bullets
+- Images: create_image, replace_image, update_image_properties, refresh_sheets_chart
+- Tables: create_table, update_table_cell_properties, merge_table_cells, unmerge_table_cells
+- Layout & elements: update_page_properties, update_page_element_transform, group_objects, ungroup_objects
+- Escape hatch: batch_update_presentation for arbitrary requests
+
+Common structure helpers
+
+- ElementProperties (subset)
+```json
+{"pageObjectId": "<slideId>", "size": {"width": {"magnitude": 3000000, "unit": "EMU"}, "height": {"magnitude": 1000000, "unit": "EMU"}}, "transform": {"scaleX": 1, "scaleY": 1, "translateX": 100000, "translateY": 100000, "unit": "EMU"}}
+```
+- TextRange (examples)
+```json
+{"type": "ALL"}
+{"type": "FIXED_RANGE", "startIndex": 0, "endIndex": 25}
+```
+
+Request templates
+
+- Create slide with layout at index 1
+```json
+{"presentation_id": "...", "predefined_layout": "TITLE_AND_BODY", "insertion_index": 1}
+```
+
+- Duplicate slide (objectId is slide ID)
+```json
+{"presentation_id": "...", "object_id": "g12345"}
+```
+
+- Delete object (slide or element)
+```json
+{"presentation_id": "...", "object_id": "g12345"}
+```
+
+- Move slides to index 0
+```json
+{"presentation_id": "...", "slide_object_ids": ["g12345","g67890"], "insertion_index": 0}
+```
+
+- Create shape (rectangle)
+```json
+{
+  "presentation_id": "...",
+  "shape_type": "RECTANGLE",
+  "element_properties": {
+    "pageObjectId": "g12345",
+    "size": {"width": {"magnitude": 3000000, "unit": "EMU"}, "height": {"magnitude": 1000000, "unit": "EMU"}},
+    "transform": {"scaleX": 1, "scaleY": 1, "translateX": 200000, "translateY": 200000, "unit": "EMU"}
+  }
+}
+```
+
+- Insert text into shape
+```json
+{"presentation_id": "...", "object_id": "shapeId1", "text": "Hello world", "insertion_index": 0}
+```
+
+- Replace all text (case-insensitive)
+```json
+{
+  "presentation_id": "...",
+  "contains_text": {"text": "TODO", "matchCase": false},
+  "replace_text": "Done",
+  "case_sensitive": false
+}
+```
+
+- Update text style (bold first 5 chars)
+```json
+{
+  "presentation_id": "...",
+  "object_id": "shapeId1",
+  "text_range": {"type": "FIXED_RANGE", "startIndex": 0, "endIndex": 5},
+  "style": {"bold": true},
+  "fields": "bold"
+}
+```
+
+- Create image from URL
+```json
+{
+  "presentation_id": "...",
+  "image_url": "https://example.com/logo.png",
+  "element_properties": {"pageObjectId": "g12345", "transform": {"scaleX": 1, "scaleY": 1, "translateX": 100000, "translateY": 100000, "unit": "EMU"}}
+}
+```
+
+- Replace image content
+```json
+{"presentation_id": "...", "object_id": "imageObjectId", "image_url": "https://example.com/new.png"}
+```
+
+- Create table
+```json
+{
+  "presentation_id": "...",
+  "rows": 3,
+  "columns": 4,
+  "element_properties": {"pageObjectId": "g12345", "transform": {"scaleX": 1, "scaleY": 1, "translateX": 100000, "translateY": 100000, "unit": "EMU"}}
+}
+```
+
+- Update table cell properties (header fill)
+```json
+{
+  "presentation_id": "...",
+  "object_id": "tableId1",
+  "table_range": {"location": {"rowIndex": 0, "columnIndex": 0}, "rowSpan": 1, "columnSpan": 4},
+  "table_cell_properties": {"tableCellBackgroundFill": {"solidFill": {"color": {"rgbColor": {"red": 0.95, "green": 0.95, "blue": 0.95}}}}},
+  "fields": "tableCellBackgroundFill.solidFill.color"
+}
+```
+
+- Merge/unmerge table cells
+```json
+{"presentation_id": "...", "object_id": "tableId1", "table_range": {"location": {"rowIndex": 0, "columnIndex": 0}, "rowSpan": 1, "columnSpan": 2}}
+```
+
+- Create/delete paragraph bullets
+```json
+{"presentation_id": "...", "object_id": "shapeId1", "text_range": {"type": "ALL"}}
+```
+
+- Update page background color
+```json
+{
+  "presentation_id": "...",
+  "page_object_id": "g12345",
+  "page_properties": {"pageBackgroundFill": {"solidFill": {"color": {"rgbColor": {"red": 1, "green": 1, "blue": 0.85}}}}},
+  "fields": "pageBackgroundFill.solidFill.color"
+}
+```
+
+- Update element transform (move right 100k EMU)
+```json
+{
+  "presentation_id": "...",
+  "object_id": "shapeId1",
+  "transform": {"scaleX": 1, "scaleY": 1, "shearX": 0, "shearY": 0, "translateX": 100000, "translateY": 0, "unit": "EMU"},
+  "apply_mode": "RELATIVE"
+}
+```
+
+- Update image transparency
+```json
+{
+  "presentation_id": "...",
+  "object_id": "imageId1",
+  "image_properties": {"transparency": 0.3},
+  "fields": "transparency"
+}
+```
+
+- Refresh linked Sheets chart
+```json
+{"presentation_id": "...", "object_id": "sheetsChartId"}
+```
+
+- Group/ungroup objects
+```json
+{"presentation_id": "...", "object_ids": ["shape1","shape2"]}
+{"presentation_id": "...", "group_object_id": "group1"}
+```
+
+- Batch update (escape hatch)
+```json
+{
+  "presentation_id": "...",
+  "requests": [
+    {"createShape": {"shapeType": "TEXT_BOX", "elementProperties": {"pageObjectId": "g12345"}}},
+    {"insertText": {"objectId": "<reply-created-id>", "text": "Hello"}}
+  ]
+}
+```
+---
+
 ## 🛠️ Development
 
 ### Project Structure

@@ -6,7 +6,7 @@ This module provides MCP tools for interacting with Google Slides API.
 
 import logging
 import asyncio
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 
 from auth.service_decorator import require_google_service
@@ -271,6 +271,724 @@ You can view or download the thumbnail using the provided URL."""
     logger.info(f"Thumbnail generated successfully for {user_google_email}")
     return confirmation_message
 
+
+@server.tool()
+@handle_http_errors("create_slide", service_type="slides")
+@require_google_service("slides", "slides")
+async def create_slide(
+    service,
+    user_google_email: str,
+    presentation_id: str,
+    predefined_layout: Optional[str] = "TITLE_AND_BODY",
+    insertion_index: Optional[int] = None,
+    object_id: Optional[str] = None,
+) -> str:
+    """
+    Create a new slide with an optional predefined layout and insertion index.
+    """
+    logger.info(f"[create_slide] Email='{user_google_email}', Presentation={presentation_id}, Layout={predefined_layout}")
+
+    req: Dict[str, Any] = {
+        "createSlide": {
+            "slideLayoutReference": {"predefinedLayout": predefined_layout} if predefined_layout else {},
+        }
+    }
+    if insertion_index is not None:
+        req["createSlide"]["insertionIndex"] = insertion_index
+    if object_id:
+        req["createSlide"]["objectId"] = object_id
+
+    result = await asyncio.to_thread(
+        service.presentations().batchUpdate(
+            presentationId=presentation_id, body={"requests": [req]}
+        ).execute
+    )
+    new_id = result.get("replies", [{}])[0].get("createSlide", {}).get("objectId")
+    return f"Created slide with id {new_id}."
+
+
+@server.tool()
+@handle_http_errors("duplicate_object", service_type="slides")
+@require_google_service("slides", "slides")
+async def duplicate_object(
+    service,
+    user_google_email: str,
+    presentation_id: str,
+    object_id: str,
+    object_ids: Optional[Dict[str, str]] = None,
+) -> str:
+    """Duplicate a slide or page element. Optionally provide objectIds mapping."""
+    logger.info(f"[duplicate_object] Email='{user_google_email}', Presentation={presentation_id}, Object={object_id}")
+    req = {"duplicateObject": {"objectId": object_id}}
+    if object_ids:
+        req["duplicateObject"]["objectIds"] = object_ids
+
+    result = await asyncio.to_thread(
+        service.presentations().batchUpdate(
+            presentationId=presentation_id, body={"requests": [req]}
+        ).execute
+    )
+    new_id = result.get("replies", [{}])[0].get("duplicateObject", {}).get("objectId")
+    return f"Duplicated object {object_id} to {new_id}."
+
+
+@server.tool()
+@handle_http_errors("delete_object", service_type="slides")
+@require_google_service("slides", "slides")
+async def delete_object(
+    service,
+    user_google_email: str,
+    presentation_id: str,
+    object_id: str,
+) -> str:
+    """Delete a slide or page element by object id."""
+    logger.info(f"[delete_object] Email='{user_google_email}', Presentation={presentation_id}, Object={object_id}")
+    req = {"deleteObject": {"objectId": object_id}}
+    await asyncio.to_thread(
+        service.presentations().batchUpdate(presentationId=presentation_id, body={"requests": [req]}).execute
+    )
+    return f"Deleted object {object_id}."
+
+
+@server.tool()
+@handle_http_errors("move_slides", service_type="slides")
+@require_google_service("slides", "slides")
+async def move_slides(
+    service,
+    user_google_email: str,
+    presentation_id: str,
+    slide_object_ids: List[str],
+    insertion_index: int,
+) -> str:
+    """Reorder slides by moving the given slide ids to the insertion index."""
+    logger.info(f"[move_slides] Email='{user_google_email}', Presentation={presentation_id}, Count={len(slide_object_ids)}")
+    req = {
+        "updateSlidesPosition": {
+            "slideObjectIds": slide_object_ids,
+            "insertionIndex": insertion_index,
+        }
+    }
+    await asyncio.to_thread(
+        service.presentations().batchUpdate(presentationId=presentation_id, body={"requests": [req]}).execute
+    )
+    return f"Moved {len(slide_object_ids)} slide(s) to index {insertion_index}."
+
+
+@server.tool()
+@handle_http_errors("create_shape", service_type="slides")
+@require_google_service("slides", "slides")
+async def create_shape(
+    service,
+    user_google_email: str,
+    presentation_id: str,
+    shape_type: str,
+    element_properties: Dict[str, Any],
+    object_id: Optional[str] = None,
+) -> str:
+    """Create a shape on a slide. element_properties must include pageObjectId and transform/size."""
+    logger.info(f"[create_shape] Email='{user_google_email}', Presentation={presentation_id}, Type={shape_type}")
+    req: Dict[str, Any] = {
+        "createShape": {
+            "shapeType": shape_type,
+            "elementProperties": element_properties,
+        }
+    }
+    if object_id:
+        req["createShape"]["objectId"] = object_id
+
+    result = await asyncio.to_thread(
+        service.presentations().batchUpdate(presentationId=presentation_id, body={"requests": [req]}).execute
+    )
+    new_id = result.get("replies", [{}])[0].get("createShape", {}).get("objectId")
+    return f"Created shape with id {new_id}."
+
+
+@server.tool()
+@handle_http_errors("insert_text", service_type="slides")
+@require_google_service("slides", "slides")
+async def insert_text(
+    service,
+    user_google_email: str,
+    presentation_id: str,
+    object_id: str,
+    text: str,
+    insertion_index: int = 0,
+) -> str:
+    """Insert text into a shape or table cell-containing object at a given index."""
+    logger.info(f"[insert_text] Email='{user_google_email}', Presentation={presentation_id}, Object={object_id}")
+    req = {"insertText": {"objectId": object_id, "text": text, "insertionIndex": insertion_index}}
+    await asyncio.to_thread(
+        service.presentations().batchUpdate(presentationId=presentation_id, body={"requests": [req]}).execute
+    )
+    return f"Inserted text into {object_id}."
+
+
+@server.tool()
+@handle_http_errors("replace_all_text", service_type="slides")
+@require_google_service("slides", "slides")
+async def replace_all_text(
+    service,
+    user_google_email: str,
+    presentation_id: str,
+    contains_text: Dict[str, Any],
+    replace_text: str,
+    page_object_ids: Optional[List[str]] = None,
+    case_sensitive: bool = False,
+) -> str:
+    """Replace all matches of contains_text with replace_text, optionally limited to specific pages."""
+    logger.info(f"[replace_all_text] Email='{user_google_email}', Presentation={presentation_id}")
+    req: Dict[str, Any] = {
+        "replaceAllText": {
+            "containsText": contains_text,
+            "replaceText": replace_text,
+            "caseSensitive": case_sensitive,
+        }
+    }
+    if page_object_ids:
+        req["replaceAllText"]["pageObjectIds"] = page_object_ids
+
+    result = await asyncio.to_thread(
+        service.presentations().batchUpdate(presentationId=presentation_id, body={"requests": [req]}).execute
+    )
+    changed = result.get("replies", [{}])[0].get("replaceAllText", {}).get("occurrencesChanged", 0)
+    return f"Replaced {changed} occurrence(s)."
+
+
+@server.tool()
+@handle_http_errors("update_text_style", service_type="slides")
+@require_google_service("slides", "slides")
+async def update_text_style(
+    service,
+    user_google_email: str,
+    presentation_id: str,
+    object_id: str,
+    text_range: Dict[str, Any],
+    style: Dict[str, Any],
+    fields: str,
+) -> str:
+    """Update text style for a given object and range."""
+    logger.info(f"[update_text_style] Email='{user_google_email}', Presentation={presentation_id}, Object={object_id}")
+    req = {
+        "updateTextStyle": {
+            "objectId": object_id,
+            "textRange": text_range,
+            "style": style,
+            "fields": fields,
+        }
+    }
+    await asyncio.to_thread(
+        service.presentations().batchUpdate(presentationId=presentation_id, body={"requests": [req]}).execute
+    )
+    return "Updated text style."
+
+
+@server.tool()
+@handle_http_errors("update_paragraph_style", service_type="slides")
+@require_google_service("slides", "slides")
+async def update_paragraph_style(
+    service,
+    user_google_email: str,
+    presentation_id: str,
+    object_id: str,
+    text_range: Dict[str, Any],
+    style: Dict[str, Any],
+    fields: str,
+) -> str:
+    """Update paragraph style for a given object and range."""
+    logger.info(f"[update_paragraph_style] Email='{user_google_email}', Presentation={presentation_id}, Object={object_id}")
+    req = {
+        "updateParagraphStyle": {
+            "objectId": object_id,
+            "textRange": text_range,
+            "style": style,
+            "fields": fields,
+        }
+    }
+    await asyncio.to_thread(
+        service.presentations().batchUpdate(presentationId=presentation_id, body={"requests": [req]}).execute
+    )
+    return "Updated paragraph style."
+
+
+@server.tool()
+@handle_http_errors("create_image", service_type="slides")
+@require_google_service("slides", "slides")
+async def create_image(
+    service,
+    user_google_email: str,
+    presentation_id: str,
+    image_url: str,
+    element_properties: Dict[str, Any],
+    object_id: Optional[str] = None,
+) -> str:
+    """Create an image from a public URL at a specific position/size on a slide."""
+    logger.info(f"[create_image] Email='{user_google_email}', Presentation={presentation_id}")
+    req: Dict[str, Any] = {
+        "createImage": {
+            "url": image_url,
+            "elementProperties": element_properties,
+        }
+    }
+    if object_id:
+        req["createImage"]["objectId"] = object_id
+
+    result = await asyncio.to_thread(
+        service.presentations().batchUpdate(presentationId=presentation_id, body={"requests": [req]}).execute
+    )
+    new_id = result.get("replies", [{}])[0].get("createImage", {}).get("objectId")
+    return f"Created image with id {new_id}."
+
+
+@server.tool()
+@handle_http_errors("replace_image", service_type="slides")
+@require_google_service("slides", "slides")
+async def replace_image(
+    service,
+    user_google_email: str,
+    presentation_id: str,
+    object_id: str,
+    image_url: str,
+) -> str:
+    """Replace the image content of an existing image object with a new URL."""
+    logger.info(f"[replace_image] Email='{user_google_email}', Presentation={presentation_id}, Object={object_id}")
+    req = {"replaceImage": {"imageObjectId": object_id, "url": image_url}}
+    await asyncio.to_thread(
+        service.presentations().batchUpdate(presentationId=presentation_id, body={"requests": [req]}).execute
+    )
+    return f"Replaced image for {object_id}."
+
+
+@server.tool()
+@handle_http_errors("create_table", service_type="slides")
+@require_google_service("slides", "slides")
+async def create_table(
+    service,
+    user_google_email: str,
+    presentation_id: str,
+    rows: int,
+    columns: int,
+    element_properties: Dict[str, Any],
+    object_id: Optional[str] = None,
+) -> str:
+    """Create a table on a slide with specified rows/columns and placement."""
+    logger.info(f"[create_table] Email='{user_google_email}', Presentation={presentation_id}, Size={rows}x{columns}")
+    req: Dict[str, Any] = {
+        "createTable": {
+            "rows": rows,
+            "columns": columns,
+            "elementProperties": element_properties,
+        }
+    }
+    if object_id:
+        req["createTable"]["objectId"] = object_id
+
+    result = await asyncio.to_thread(
+        service.presentations().batchUpdate(presentationId=presentation_id, body={"requests": [req]}).execute
+    )
+    new_id = result.get("replies", [{}])[0].get("createTable", {}).get("objectId")
+    return f"Created table with id {new_id}."
+
+
+@server.tool()
+@handle_http_errors("update_table_cell_properties", service_type="slides")
+@require_google_service("slides", "slides")
+async def update_table_cell_properties(
+    service,
+    user_google_email: str,
+    presentation_id: str,
+    object_id: str,
+    table_range: Dict[str, Any],
+    table_cell_properties: Dict[str, Any],
+    fields: str,
+) -> str:
+    """Update style properties for table cells within a given range for a table object."""
+    logger.info(f"[update_table_cell_properties] Email='{user_google_email}', Presentation={presentation_id}, Object={object_id}")
+    req = {
+        "updateTableCellProperties": {
+            "objectId": object_id,
+            "tableRange": table_range,
+            "tableCellProperties": table_cell_properties,
+            "fields": fields,
+        }
+    }
+    await asyncio.to_thread(
+        service.presentations().batchUpdate(presentationId=presentation_id, body={"requests": [req]}).execute
+    )
+    return "Updated table cell properties."
+
+
+@server.tool()
+@handle_http_errors("merge_table_cells", service_type="slides")
+@require_google_service("slides", "slides")
+async def merge_table_cells(
+    service,
+    user_google_email: str,
+    presentation_id: str,
+    object_id: str,
+    table_range: Dict[str, Any],
+) -> str:
+    """Merge table cells within the given range for a table object."""
+    logger.info(f"[merge_table_cells] Email='{user_google_email}', Presentation={presentation_id}, Object={object_id}")
+    req = {"mergeTableCells": {"objectId": object_id, "tableRange": table_range}}
+    await asyncio.to_thread(
+        service.presentations().batchUpdate(presentationId=presentation_id, body={"requests": [req]}).execute
+    )
+    return "Merged table cells."
+
+
+@server.tool()
+@handle_http_errors("unmerge_table_cells", service_type="slides")
+@require_google_service("slides", "slides")
+async def unmerge_table_cells(
+    service,
+    user_google_email: str,
+    presentation_id: str,
+    object_id: str,
+    table_range: Dict[str, Any],
+) -> str:
+    """Unmerge table cells within the given range for a table object."""
+    logger.info(f"[unmerge_table_cells] Email='{user_google_email}', Presentation={presentation_id}, Object={object_id}")
+    req = {"unmergeTableCells": {"objectId": object_id, "tableRange": table_range}}
+    await asyncio.to_thread(
+        service.presentations().batchUpdate(presentationId=presentation_id, body={"requests": [req]}).execute
+    )
+    return "Unmerged table cells."
+
+
+@server.tool()
+@handle_http_errors("create_paragraph_bullets", service_type="slides")
+@require_google_service("slides", "slides")
+async def create_paragraph_bullets(
+    service,
+    user_google_email: str,
+    presentation_id: str,
+    object_id: str,
+    text_range: Dict[str, Any],
+    bullet_preset: Optional[str] = None,
+) -> str:
+    """Create bullets for the specified text range within an object."""
+    logger.info(f"[create_paragraph_bullets] Email='{user_google_email}', Presentation={presentation_id}, Object={object_id}")
+    req: Dict[str, Any] = {
+        "createParagraphBullets": {
+            "objectId": object_id,
+            "textRange": text_range,
+        }
+    }
+    if bullet_preset:
+        req["createParagraphBullets"]["bulletPreset"] = bullet_preset
+
+    await asyncio.to_thread(
+        service.presentations().batchUpdate(presentationId=presentation_id, body={"requests": [req]}).execute
+    )
+    return "Created paragraph bullets."
+
+
+@server.tool()
+@handle_http_errors("delete_paragraph_bullets", service_type="slides")
+@require_google_service("slides", "slides")
+async def delete_paragraph_bullets(
+    service,
+    user_google_email: str,
+    presentation_id: str,
+    object_id: str,
+    text_range: Dict[str, Any],
+) -> str:
+    """Delete bullets for the specified text range within an object."""
+    logger.info(f"[delete_paragraph_bullets] Email='{user_google_email}', Presentation={presentation_id}, Object={object_id}")
+    req = {"deleteParagraphBullets": {"objectId": object_id, "textRange": text_range}}
+    await asyncio.to_thread(
+        service.presentations().batchUpdate(presentationId=presentation_id, body={"requests": [req]}).execute
+    )
+    return "Deleted paragraph bullets."
+
+
+@server.tool()
+@handle_http_errors("update_page_properties", service_type="slides")
+@require_google_service("slides", "slides")
+async def update_page_properties(
+    service,
+    user_google_email: str,
+    presentation_id: str,
+    page_object_id: str,
+    page_properties: Dict[str, Any],
+    fields: str,
+) -> str:
+    """Update page (slide) properties such as background fill or page type."""
+    logger.info(f"[update_page_properties] Email='{user_google_email}', Presentation={presentation_id}, Page={page_object_id}")
+    req = {
+        "updatePageProperties": {
+            "objectId": page_object_id,
+            "pageProperties": page_properties,
+            "fields": fields,
+        }
+    }
+    await asyncio.to_thread(
+        service.presentations().batchUpdate(presentationId=presentation_id, body={"requests": [req]}).execute
+    )
+    return "Updated page properties."
+
+
+@server.tool()
+@handle_http_errors("update_page_element_transform", service_type="slides")
+@require_google_service("slides", "slides")
+async def update_page_element_transform(
+    service,
+    user_google_email: str,
+    presentation_id: str,
+    object_id: str,
+    transform: Dict[str, Any],
+    apply_mode: str = "RELATIVE",
+) -> str:
+    """Update the transform (position/scale/rotation) of a page element."""
+    logger.info(f"[update_page_element_transform] Email='{user_google_email}', Presentation={presentation_id}, Object={object_id}")
+    req = {
+        "updatePageElementTransform": {
+            "objectId": object_id,
+            "transform": transform,
+            "applyMode": apply_mode,
+        }
+    }
+    await asyncio.to_thread(
+        service.presentations().batchUpdate(presentationId=presentation_id, body={"requests": [req]}).execute
+    )
+    return "Updated element transform."
+
+
+@server.tool()
+@handle_http_errors("update_image_properties", service_type="slides")
+@require_google_service("slides", "slides")
+async def update_image_properties(
+    service,
+    user_google_email: str,
+    presentation_id: str,
+    object_id: str,
+    image_properties: Dict[str, Any],
+    fields: str,
+) -> str:
+    """Update image properties (e.g., transparency, recolor)."""
+    logger.info(f"[update_image_properties] Email='{user_google_email}', Presentation={presentation_id}, Object={object_id}")
+    req = {
+        "updateImageProperties": {
+            "objectId": object_id,
+            "imageProperties": image_properties,
+            "fields": fields,
+        }
+    }
+    await asyncio.to_thread(
+        service.presentations().batchUpdate(presentationId=presentation_id, body={"requests": [req]}).execute
+    )
+    return "Updated image properties."
+
+
+@server.tool()
+@handle_http_errors("refresh_sheets_chart", service_type="slides")
+@require_google_service("slides", "slides")
+async def refresh_sheets_chart(
+    service,
+    user_google_email: str,
+    presentation_id: str,
+    object_id: str,
+) -> str:
+    """Refresh a linked Sheets chart element by its object id."""
+    logger.info(f"[refresh_sheets_chart] Email='{user_google_email}', Presentation={presentation_id}, Object={object_id}")
+    req = {"refreshSheetsChart": {"objectId": object_id}}
+    await asyncio.to_thread(
+        service.presentations().batchUpdate(presentationId=presentation_id, body={"requests": [req]}).execute
+    )
+    return "Refreshed linked Sheets chart."
+
+
+@server.tool()
+@handle_http_errors("group_objects", service_type="slides")
+@require_google_service("slides", "slides")
+async def group_objects(
+    service,
+    user_google_email: str,
+    presentation_id: str,
+    object_ids: List[str],
+    group_object_id: Optional[str] = None,
+) -> str:
+    """Group multiple page elements into a single group object."""
+    logger.info(f"[group_objects] Email='{user_google_email}', Presentation={presentation_id}, Count={len(object_ids)}")
+    req: Dict[str, Any] = {"groupObjects": {"objects": object_ids}}
+    if group_object_id:
+        req["groupObjects"]["groupObjectId"] = group_object_id
+
+    result = await asyncio.to_thread(
+        service.presentations().batchUpdate(presentationId=presentation_id, body={"requests": [req]}).execute
+    )
+    new_id = result.get("replies", [{}])[0].get("groupObjects", {}).get("objectId")
+    return f"Grouped objects into {new_id}."
+
+
+@server.tool()
+@handle_http_errors("ungroup_objects", service_type="slides")
+@require_google_service("slides", "slides")
+async def ungroup_objects(
+    service,
+    user_google_email: str,
+    presentation_id: str,
+    group_object_id: str,
+) -> str:
+    """Ungroup a group object back into individual elements."""
+    logger.info(f"[ungroup_objects] Email='{user_google_email}', Presentation={presentation_id}, Group={group_object_id}")
+    req = {"ungroupObjects": {"groupObjectId": group_object_id}}
+    await asyncio.to_thread(
+        service.presentations().batchUpdate(presentationId=presentation_id, body={"requests": [req]}).execute
+    )
+    return "Ungrouped objects."
+
+
+@server.tool()
+@handle_http_errors("create_sheets_chart", service_type="slides")
+@require_google_service("slides", "slides")
+async def create_sheets_chart(
+    service,
+    user_google_email: str,
+    presentation_id: str,
+    spreadsheet_id: str,
+    chart_id: int,
+    element_properties: Dict[str, Any],
+    linking_mode: Optional[str] = "LINKED",
+    object_id: Optional[str] = None,
+) -> str:
+    """
+    Embed a chart from Google Sheets into a slide.
+
+    Args:
+        spreadsheet_id: Source spreadsheet ID containing the chart.
+        chart_id: The chart ID within the spreadsheet.
+        element_properties: Placement/size including pageObjectId and transform/size.
+        linking_mode: "LINKED" or "NOT_LINKED_IMAGE" (default: LINKED).
+        object_id: Optional object id for the new element.
+    """
+    logger.info(f"[create_sheets_chart] Email='{user_google_email}', Presentation={presentation_id}, Sheet={spreadsheet_id}, Chart={chart_id}")
+    req: Dict[str, Any] = {
+        "createSheetsChart": {
+            "spreadsheetId": spreadsheet_id,
+            "chartId": chart_id,
+            "elementProperties": element_properties,
+        }
+    }
+    if linking_mode:
+        req["createSheetsChart"]["linkingMode"] = linking_mode
+    if object_id:
+        req["createSheetsChart"]["objectId"] = object_id
+
+    result = await asyncio.to_thread(
+        service.presentations().batchUpdate(presentationId=presentation_id, body={"requests": [req]}).execute
+    )
+    new_id = result.get("replies", [{}])[0].get("createSheetsChart", {}).get("objectId")
+    return f"Created Sheets chart with id {new_id}."
+
+
+@server.tool()
+@handle_http_errors("update_sheets_chart_spec", service_type="slides")
+@require_google_service("slides", "slides")
+async def update_sheets_chart_spec(
+    service,
+    user_google_email: str,
+    presentation_id: str,
+    object_id: str,
+    fields: str,
+    spreadsheet_id: Optional[str] = None,
+    chart_id: Optional[int] = None,
+    linking_mode: Optional[str] = None,
+) -> str:
+    """
+    Update an embedded Sheets chart specification (spreadsheetId, chartId, linkingMode).
+
+    Args:
+        object_id: The embedded Sheets chart object id on the slide.
+        fields: Comma-separated fields to update (e.g., "spreadsheetId,chartId,linkingMode").
+    """
+    logger.info(f"[update_sheets_chart_spec] Email='{user_google_email}', Presentation={presentation_id}, Object={object_id}")
+    spec: Dict[str, Any] = {"objectId": object_id}
+    if spreadsheet_id is not None:
+        spec["spreadsheetId"] = spreadsheet_id
+    if chart_id is not None:
+        spec["chartId"] = chart_id
+    if linking_mode is not None:
+        spec["linkingMode"] = linking_mode
+
+    req = {"updateSheetsChartSpec": {**spec, "fields": fields}}
+    await asyncio.to_thread(
+        service.presentations().batchUpdate(presentationId=presentation_id, body={"requests": [req]}).execute
+    )
+    return "Updated Sheets chart spec."
+
+
+@server.tool()
+@handle_http_errors("replace_all_shapes_with_sheets_chart", service_type="slides")
+@require_google_service("slides", "slides")
+async def replace_all_shapes_with_sheets_chart(
+    service,
+    user_google_email: str,
+    presentation_id: str,
+    spreadsheet_id: str,
+    chart_id: int,
+    linking_mode: Optional[str] = "LINKED",
+    contains_text: Optional[Dict[str, Any]] = None,
+    page_object_ids: Optional[List[str]] = None,
+) -> str:
+    """
+    Replace matching shapes with a Sheets chart.
+
+    Args:
+        contains_text: Optional text match filter for shapes.
+        page_object_ids: Optional page restriction list.
+    """
+    logger.info(f"[replace_all_shapes_with_sheets_chart] Email='{user_google_email}', Presentation={presentation_id}, Sheet={spreadsheet_id}, Chart={chart_id}")
+    req: Dict[str, Any] = {
+        "replaceAllShapesWithSheetsChart": {
+            "spreadsheetId": spreadsheet_id,
+            "chartId": chart_id,
+        }
+    }
+    if linking_mode:
+        req["replaceAllShapesWithSheetsChart"]["linkingMode"] = linking_mode
+    if contains_text:
+        req["replaceAllShapesWithSheetsChart"]["containsText"] = contains_text
+    if page_object_ids:
+        req["replaceAllShapesWithSheetsChart"]["pageObjectIds"] = page_object_ids
+
+    result = await asyncio.to_thread(
+        service.presentations().batchUpdate(presentationId=presentation_id, body={"requests": [req]}).execute
+    )
+    changed = result.get("replies", [{}])[0].get("replaceAllShapesWithSheetsChart", {}).get("occurrencesChanged", 0)
+    return f"Replaced {changed} shape(s) with Sheets chart."
+
+
+@server.tool()
+@handle_http_errors("replace_all_shapes_with_image", service_type="slides")
+@require_google_service("slides", "slides")
+async def replace_all_shapes_with_image(
+    service,
+    user_google_email: str,
+    presentation_id: str,
+    image_url: str,
+    image_replace_method: Optional[str] = None,
+    contains_text: Optional[Dict[str, Any]] = None,
+    page_object_ids: Optional[List[str]] = None,
+) -> str:
+    """
+    Replace matching shapes with an image (by URL). image_replace_method can be CENTER_CROP, FILL, etc.
+    """
+    logger.info(f"[replace_all_shapes_with_image] Email='{user_google_email}', Presentation={presentation_id}")
+    payload: Dict[str, Any] = {"imageUrl": image_url}
+    if image_replace_method:
+        payload["imageReplaceMethod"] = image_replace_method
+    if contains_text:
+        payload["containsText"] = contains_text
+    if page_object_ids:
+        payload["pageObjectIds"] = page_object_ids
+
+    req = {"replaceAllShapesWithImage": payload}
+    result = await asyncio.to_thread(
+        service.presentations().batchUpdate(presentationId=presentation_id, body={"requests": [req]}).execute
+    )
+    changed = result.get("replies", [{}])[0].get("replaceAllShapesWithImage", {}).get("occurrencesChanged", 0)
+    return f"Replaced {changed} shape(s) with image."
 
 # Create comment management tools for slides
 _comment_tools = create_comment_tools("presentation", "presentation_id")
