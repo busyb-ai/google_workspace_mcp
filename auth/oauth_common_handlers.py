@@ -35,6 +35,27 @@ async def handle_oauth_authorize(request: Request):
 
     # Get query parameters
     params = dict(request.query_params)
+    
+    # Extract and encode return_url in state parameter if provided
+    return_url = params.pop("return_url", None)
+    if return_url:
+        import base64
+        import json
+        # Encode return_url in state parameter
+        state_data = {
+            "return_url": return_url,
+            "csrf": params.get("state", os.urandom(16).hex())  # Keep original state for CSRF if provided
+        }
+        params["state"] = base64.urlsafe_b64encode(json.dumps(state_data).encode()).decode()
+        logger.info(f"OAuth flow with return_url: {return_url}")
+    elif "state" not in params:
+        # Generate a random state if none provided
+        params["state"] = os.urandom(16).hex()
+    
+    # Handle login_hint parameter for pre-filling user email
+    login_hint = params.get("login_hint")
+    if login_hint:
+        logger.info(f"OAuth flow with login_hint: {login_hint}")
 
     # Add our client ID if not provided
     client_id = os.getenv("GOOGLE_OAUTH_CLIENT_ID")
@@ -43,6 +64,18 @@ async def handle_oauth_authorize(request: Request):
 
     # Ensure response_type is code
     params["response_type"] = "code"
+    
+    # Request offline access to get refresh token
+    if "access_type" not in params:
+        params["access_type"] = "offline"
+    
+    # Prompt for consent to ensure refresh token is issued
+    if "prompt" not in params:
+        params["prompt"] = "consent"
+    
+    # Set redirect_uri to our callback endpoint if not provided
+    if "redirect_uri" not in params:
+        params["redirect_uri"] = f"{WORKSPACE_MCP_BASE_URI}:{WORKSPACE_MCP_PORT}/oauth2callback"
 
     # Merge client scopes with scopes for enabled tools only
     client_scopes = params.get("scope", "").split() if params.get("scope") else []

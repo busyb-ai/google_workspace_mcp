@@ -3,7 +3,7 @@ import os
 from typing import Optional, Union
 from importlib import metadata
 
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from starlette.applications import Starlette
 from starlette.requests import Request
 from starlette.middleware import Middleware
@@ -43,7 +43,13 @@ _auth_provider: Optional[Union[GoogleWorkspaceAuthProvider, GoogleRemoteAuthProv
 # --- Middleware Definitions ---
 cors_middleware = Middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "https://app.busyb.ai",
+        "https://busyb.ai",
+        "http://app.busyb.ai",
+        "http://busyb.ai",
+    ],
+    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -133,24 +139,49 @@ async def health_check(request: Request):
     })
 
 @server.custom_route("/oauth2callback", methods=["GET"])
-async def oauth2_callback(request: Request) -> HTMLResponse:
+async def oauth2_callback(request: Request):
     state = request.query_params.get("state")
     code = request.query_params.get("code")
     error = request.query_params.get("error")
+    
+    # Decode state parameter to check for return_url
+    return_url = None
+    if state:
+        try:
+            import base64
+            import json
+            state_data = json.loads(base64.urlsafe_b64decode(state).decode())
+            return_url = state_data.get("return_url")
+        except Exception:
+            # State is not encoded, just a regular CSRF token
+            pass
 
     if error:
         msg = f"Authentication failed: Google returned an error: {error}. State: {state}."
         logger.error(msg)
+        if return_url:
+            # Redirect to return_url with error
+            from urllib.parse import urlencode
+            error_params = urlencode({"error": error, "error_description": msg})
+            return RedirectResponse(url=f"{return_url}?{error_params}")
         return create_error_response(msg)
 
     if not code:
         msg = "Authentication failed: No authorization code received from Google."
         logger.error(msg)
+        if return_url:
+            from urllib.parse import urlencode
+            error_params = urlencode({"error": "no_code", "error_description": msg})
+            return RedirectResponse(url=f"{return_url}?{error_params}")
         return create_error_response(msg)
 
     try:
         error_message = check_client_secrets()
         if error_message:
+            if return_url:
+                from urllib.parse import urlencode
+                error_params = urlencode({"error": "config_error", "error_description": error_message})
+                return RedirectResponse(url=f"{return_url}?{error_params}")
             return create_server_error_response(error_message)
 
         logger.info(f"OAuth callback: Received code (state: {state}).")
@@ -186,10 +217,234 @@ async def oauth2_callback(request: Request) -> HTMLResponse:
         except Exception as e:
             logger.error(f"Failed to store credentials in OAuth 2.1 store: {e}")
 
+        # If return_url was provided, redirect back to frontend
+        if return_url:
+            from urllib.parse import urlencode
+            success_params = urlencode({
+                "success": "true",
+                "email": verified_user_id
+            })
+            redirect_url = f"{return_url}?{success_params}"
+            logger.info(f"Redirecting to return_url: {redirect_url}")
+            return RedirectResponse(url=redirect_url)
+        
+        # Otherwise show success page
         return create_success_response(verified_user_id)
+        
     except Exception as e:
         logger.error(f"Error processing OAuth callback: {str(e)}", exc_info=True)
+        if return_url:
+            from urllib.parse import urlencode
+            error_params = urlencode({"error": "auth_failed", "error_description": str(e)})
+            return RedirectResponse(url=f"{return_url}?{error_params}")
         return create_server_error_response(str(e))
+
+@server.custom_route("/auth/status", methods=["GET", "OPTIONS"])
+async def auth_status(request: Request):
+    """Check authentication status for the current user."""
+    if request.method == "OPTIONS":
+        return JSONResponse(
+            content={},
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization"
+            }
+        )
+    
+    try:
+        # Extract bearer token from Authorization header
+        auth_header = request.headers.get("authorization")
+        if not auth_header or not auth_header.lower().startswith("bearer "):
+            return JSONResponse(
+                status_code=401,
+                content={
+                    "authenticated": False,
+                    "error": "No bearer token provided"
+                },
+                headers={"Access-Control-Allow-Origin": "*"}
+            )
+        
+        token = auth_header[7:]  # Remove "Bearer " prefix
+        
+        # Verify token using auth provider if available
+        auth_provider = get_auth_provider()
+        user_email = None
+        
+        if auth_provider:
+            # Try to verify the token
+            try:
+                access_token = await auth_provider.verify_token(token)
+                if access_token:
+                    user_email = getattr(access_token, 'email', None) or access_token.claims.get('email')
+            except Exception as e:
+                logger.debug(f"Token verification via auth provider failed: {e}")
+        
+        # Fallback: decode JWT without verification to extract email
+        if not user_email:
+            try:
+                import jwt
+                claims = jwt.decode(token, options={"verify_signature": False})
+                user_email = claims.get('email')
+            except Exception as e:
+                logger.debug(f"Failed to decode JWT: {e}")
+        
+        # Check if we found user email and have credentials
+        if user_email:
+            store = get_oauth21_session_store()
+            credentials = store.get_credentials(user_email)
+            
+            if credentials:
+                # Check if credentials are valid
+                is_valid = credentials.valid
+                expiry = credentials.expiry.isoformat() if credentials.expiry else None
+                
+                return JSONResponse(
+                    content={
+                        "authenticated": True,
+                        "email": user_email,
+                        "valid": is_valid,
+                        "expired": credentials.expired if hasattr(credentials, 'expired') else not is_valid,
+                        "expires_at": expiry,
+                        "scopes": credentials.scopes
+                    },
+                    headers={"Access-Control-Allow-Origin": "*"}
+                )
+        
+        # Token provided but no valid credentials found
+        return JSONResponse(
+            status_code=401,
+            content={
+                "authenticated": False,
+                "error": "Invalid or expired token"
+            },
+            headers={"Access-Control-Allow-Origin": "*"}
+        )
+        
+    except Exception as e:
+        logger.error(f"Error checking auth status: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={
+                "authenticated": False,
+                "error": f"Internal error: {str(e)}"
+            },
+            headers={"Access-Control-Allow-Origin": "*"}
+        )
+
+@server.custom_route("/auth/revoke", methods=["POST", "OPTIONS"])
+async def auth_revoke(request: Request):
+    """Revoke authentication and delete stored credentials."""
+    if request.method == "OPTIONS":
+        return JSONResponse(
+            content={},
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "POST, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization"
+            }
+        )
+    
+    try:
+        # Extract bearer token from Authorization header
+        auth_header = request.headers.get("authorization")
+        user_email = None
+        
+        if auth_header and auth_header.lower().startswith("bearer "):
+            token = auth_header[7:]  # Remove "Bearer " prefix
+            
+            # Try to get user email from token
+            auth_provider = get_auth_provider()
+            if auth_provider:
+                try:
+                    access_token = await auth_provider.verify_token(token)
+                    if access_token:
+                        user_email = getattr(access_token, 'email', None) or access_token.claims.get('email')
+                except Exception as e:
+                    logger.debug(f"Token verification failed: {e}")
+            
+            # Fallback: decode JWT without verification
+            if not user_email:
+                try:
+                    import jwt
+                    claims = jwt.decode(token, options={"verify_signature": False})
+                    user_email = claims.get('email')
+                except Exception:
+                    pass
+        
+        # Also check request body for email (optional)
+        if not user_email:
+            try:
+                body = await request.json()
+                user_email = body.get('email')
+            except Exception:
+                pass
+        
+        if not user_email:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "success": False,
+                    "error": "No user email found in token or request body"
+                },
+                headers={"Access-Control-Allow-Origin": "*"}
+            )
+        
+        # Get credentials before revoking to call Google's revoke endpoint
+        store = get_oauth21_session_store()
+        credentials = store.get_credentials(user_email)
+        
+        # Remove session from store
+        store.remove_session(user_email)
+        logger.info(f"Removed OAuth session for {user_email}")
+        
+        # Delete credential file
+        from auth.google_auth import DEFAULT_CREDENTIALS_DIR
+        import os
+        creds_path = os.path.join(DEFAULT_CREDENTIALS_DIR, f"{user_email}.json")
+        if os.path.exists(creds_path):
+            try:
+                os.remove(creds_path)
+                logger.info(f"Deleted credential file for {user_email}")
+            except Exception as e:
+                logger.warning(f"Failed to delete credential file: {e}")
+        
+        # Optionally revoke token with Google
+        revoked_with_google = False
+        if credentials and credentials.token:
+            try:
+                import aiohttp
+                async with aiohttp.ClientSession() as session:
+                    revoke_url = f"https://oauth2.googleapis.com/revoke?token={credentials.token}"
+                    async with session.post(revoke_url) as response:
+                        if response.status == 200:
+                            revoked_with_google = True
+                            logger.info(f"Successfully revoked token with Google for {user_email}")
+                        else:
+                            logger.warning(f"Google token revocation returned status {response.status}")
+            except Exception as e:
+                logger.warning(f"Failed to revoke token with Google: {e}")
+        
+        return JSONResponse(
+            content={
+                "success": True,
+                "email": user_email,
+                "revoked_with_google": revoked_with_google,
+                "message": "Authentication revoked and credentials deleted"
+            },
+            headers={"Access-Control-Allow-Origin": "*"}
+        )
+        
+    except Exception as e:
+        logger.error(f"Error revoking auth: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={
+                "success": False,
+                "error": f"Internal error: {str(e)}"
+            },
+            headers={"Access-Control-Allow-Origin": "*"}
+        )
 
 # --- Tools ---
 @server.tool()
