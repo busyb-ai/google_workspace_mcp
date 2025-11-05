@@ -397,17 +397,14 @@ async def auth_revoke(request: Request):
         # Remove session from store
         store.remove_session(user_email)
         logger.info(f"Removed OAuth session for {user_email}")
-        
-        # Delete credential file
-        from auth.google_auth import DEFAULT_CREDENTIALS_DIR
-        import os
-        creds_path = os.path.join(DEFAULT_CREDENTIALS_DIR, f"{user_email}.json")
-        if os.path.exists(creds_path):
-            try:
-                os.remove(creds_path)
-                logger.info(f"Deleted credential file for {user_email}")
-            except Exception as e:
-                logger.warning(f"Failed to delete credential file: {e}")
+
+        # Delete credential file using unified delete function
+        from auth.google_auth import delete_credentials_file
+        credentials_deleted = delete_credentials_file(user_email)
+        if credentials_deleted:
+            logger.info(f"Successfully deleted credential file for {user_email}")
+        else:
+            logger.info(f"No credential file found or deletion failed for {user_email}")
         
         # Optionally revoke token with Google
         revoked_with_google = False
