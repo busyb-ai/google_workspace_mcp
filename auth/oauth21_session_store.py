@@ -7,13 +7,17 @@ session context management and credential conversion functionality.
 """
 
 import contextvars
+import json
 import logging
+import os
 from typing import Dict, Optional, Any
 from threading import RLock
 from datetime import datetime, timedelta
 from dataclasses import dataclass
 
 from google.oauth2.credentials import Credentials
+from auth.google_auth import load_credentials_from_file, get_default_credentials_dir
+from auth.s3_storage import is_s3_path, s3_list_json_files, s3_download_json
 
 logger = logging.getLogger(__name__)
 
@@ -227,47 +231,172 @@ class OAuth21SessionStore:
             if session_id and session_id not in self._session_auth_binding:
                 self._session_auth_binding[session_id] = user_email
     
-    def get_credentials(self, user_email: str) -> Optional[Credentials]:
+    def get_credentials(self, user_email: str, user_id: Optional[str] = None) -> Optional[Credentials]:
         """
-        Get Google credentials for a user from OAuth 2.1 session.
+        Get Google credentials for a user from OAuth 2.1 session or file fallback.
         
         Args:
             user_email: User's email address
+            user_id: Optional user ID for file lookup (if known)
             
         Returns:
             Google Credentials object or None
         """
         with self._lock:
             session_info = self._sessions.get(user_email)
-            if not session_info:
-                logger.debug(f"No OAuth 2.1 session found for {user_email}")
-                return None
+            if session_info:
+                try:
+                    # Create Google credentials from session info
+                    credentials = Credentials(
+                        token=session_info["access_token"],
+                        refresh_token=session_info.get("refresh_token"),
+                        token_uri=session_info["token_uri"],
+                        client_id=session_info.get("client_id"),
+                        client_secret=session_info.get("client_secret"),
+                        scopes=session_info.get("scopes", []),
+                        expiry=session_info.get("expiry"),
+                    )
+                    
+                    logger.debug(f"Retrieved OAuth 2.1 credentials for {user_email} from in-memory store")
+                    return credentials
+                    
+                except Exception as e:
+                    logger.error(f"Failed to create credentials for {user_email}: {e}")
+                    return None
             
-            try:
-                # Create Google credentials from session info
-                credentials = Credentials(
-                    token=session_info["access_token"],
-                    refresh_token=session_info.get("refresh_token"),
-                    token_uri=session_info["token_uri"],
-                    client_id=session_info.get("client_id"),
-                    client_secret=session_info.get("client_secret"),
-                    scopes=session_info.get("scopes", []),
-                    expiry=session_info.get("expiry"),
-                )
-                
-                logger.debug(f"Retrieved OAuth 2.1 credentials for {user_email}")
-                return credentials
-                
-            except Exception as e:
-                logger.error(f"Failed to create credentials for {user_email}: {e}")
-                return None
+            # No in-memory session found - fall back to file system
+            logger.debug(f"No in-memory OAuth 2.1 session found for {user_email}, trying file fallback")
+            
+        # Try to load from file (release lock during file I/O)
+        credentials = self._load_credentials_from_file(user_email, user_id)
+        
+        if credentials:
+            # Re-populate in-memory store with loaded credentials
+            with self._lock:
+                try:
+                    self.store_session(
+                        user_email=user_email,
+                        access_token=credentials.token,
+                        refresh_token=credentials.refresh_token,
+                        token_uri=credentials.token_uri,
+                        client_id=credentials.client_id,
+                        client_secret=credentials.client_secret,
+                        scopes=credentials.scopes,
+                        expiry=credentials.expiry,
+                    )
+                    logger.info(f"Re-populated OAuth 2.1 session store from file for {user_email}")
+                except Exception as e:
+                    logger.error(f"Failed to re-populate session store for {user_email}: {e}")
+            
+        return credentials
     
-    def get_credentials_by_mcp_session(self, mcp_session_id: str) -> Optional[Credentials]:
+    def _load_credentials_from_file(self, user_email: str, user_id: Optional[str] = None) -> Optional[Credentials]:
         """
-        Get Google credentials using FastMCP session ID.
+        Load credentials from file system or S3.
+        
+        Strategy:
+        1. If user_id is provided, try loading {user_id}.json directly
+        2. If not found or no user_id, scan credential files for matching email
+        
+        Supports both local file storage and S3 storage.
+        
+        Args:
+            user_email: User's email address
+            user_id: Optional user ID for direct file lookup
+            
+        Returns:
+            Credentials object or None
+        """
+        credentials_dir = get_default_credentials_dir()
+        
+        # Strategy 1: Try direct lookup if user_id is provided
+        if user_id:
+            try:
+                credentials = load_credentials_from_file(user_id, credentials_dir)
+                if credentials:
+                    logger.info(f"Loaded credentials from file using user_id: {user_id}")
+                    return credentials
+            except Exception as e:
+                logger.debug(f"Could not load credentials using user_id {user_id}: {e}")
+        
+        # Strategy 2: Scan credential files for matching email (works for both S3 and local)
+        try:
+            logger.debug(f"Scanning credential files in {credentials_dir} for email: {user_email}")
+            
+            if is_s3_path(credentials_dir):
+                # Scan S3 bucket
+                try:
+                    json_files = s3_list_json_files(credentials_dir)
+                    for file_path in json_files:
+                        try:
+                            creds_data = s3_download_json(file_path)
+                            if creds_data.get("user_email") == user_email:
+                                logger.info(f"Found matching credential file in S3: {file_path}")
+                                return self._create_credentials_from_data(creds_data)
+                        except Exception as e:
+                            logger.debug(f"Error checking S3 file {file_path}: {e}")
+                            continue
+                except Exception as e:
+                    logger.error(f"Error scanning S3 bucket {credentials_dir}: {e}")
+            else:
+                # Scan local directory
+                if not os.path.exists(credentials_dir):
+                    logger.debug(f"Credentials directory does not exist: {credentials_dir}")
+                    return None
+                
+                for filename in os.listdir(credentials_dir):
+                    if filename.endswith('.json'):
+                        file_path = os.path.join(credentials_dir, filename)
+                        try:
+                            with open(file_path, 'r') as f:
+                                creds_data = json.load(f)
+                            
+                            if creds_data.get("user_email") == user_email:
+                                logger.info(f"Found matching credential file: {filename}")
+                                return self._create_credentials_from_data(creds_data)
+                        except Exception as e:
+                            logger.debug(f"Error reading credential file {filename}: {e}")
+                            continue
+            
+            logger.debug(f"No credential file found for email: {user_email}")
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error scanning credential files for {user_email}: {e}")
+            return None
+    
+    def _create_credentials_from_data(self, creds_data: dict) -> Optional[Credentials]:
+        """Create Credentials object from credential data dictionary."""
+        try:
+            expiry = None
+            if creds_data.get("expiry"):
+                try:
+                    expiry = datetime.fromisoformat(creds_data["expiry"])
+                    if expiry.tzinfo is not None:
+                        expiry = expiry.replace(tzinfo=None)
+                except (ValueError, TypeError) as e:
+                    logger.warning(f"Could not parse expiry time: {e}")
+            
+            return Credentials(
+                token=creds_data.get("token"),
+                refresh_token=creds_data.get("refresh_token"),
+                token_uri=creds_data.get("token_uri"),
+                client_id=creds_data.get("client_id"),
+                client_secret=creds_data.get("client_secret"),
+                scopes=creds_data.get("scopes"),
+                expiry=expiry,
+            )
+        except Exception as e:
+            logger.error(f"Failed to create credentials from data: {e}")
+            return None
+    
+    def get_credentials_by_mcp_session(self, mcp_session_id: str, user_id: Optional[str] = None) -> Optional[Credentials]:
+        """
+        Get Google credentials using FastMCP session ID with file fallback.
         
         Args:
             mcp_session_id: FastMCP session ID
+            user_id: user ID for file lookup
             
         Returns:
             Google Credentials object or None
@@ -280,17 +409,20 @@ class OAuth21SessionStore:
                 return None
             
             logger.debug(f"Found user {user_email} for MCP session {mcp_session_id}")
-            return self.get_credentials(user_email)
+        
+        # Call get_credentials with file fallback support
+        return self.get_credentials(user_email, user_id)
     
     def get_credentials_with_validation(
         self, 
         requested_user_email: str, 
         session_id: Optional[str] = None,
         auth_token_email: Optional[str] = None,
-        allow_recent_auth: bool = False
+        allow_recent_auth: bool = False,
+        user_id: Optional[str] = None
     ) -> Optional[Credentials]:
         """
-        Get Google credentials with session validation.
+        Get Google credentials with session validation and file fallback.
         
         This method ensures that a session can only access credentials for its
         authenticated user, preventing cross-account access.
@@ -299,6 +431,8 @@ class OAuth21SessionStore:
             requested_user_email: The email of the user whose credentials are requested
             session_id: The current session ID (MCP or OAuth session)
             auth_token_email: Email from the verified auth token (if available)
+            allow_recent_auth: Allow recently authenticated sessions
+            user_id: Optional user ID for file lookup
             
         Returns:
             Google Credentials object if validation passes, None otherwise
@@ -312,11 +446,10 @@ class OAuth21SessionStore:
                         f"credentials for {requested_user_email}"
                     )
                     return None
-                # Token email matches, allow access
-                return self.get_credentials(requested_user_email)
+                # Token email matches, allow access (release lock for get_credentials)
             
             # Priority 2: Check session binding
-            if session_id:
+            elif session_id:
                 bound_user = self._session_auth_binding.get(session_id)
                 if bound_user:
                     if bound_user != requested_user_email:
@@ -326,7 +459,6 @@ class OAuth21SessionStore:
                         )
                         return None
                     # Session binding matches, allow access
-                    return self.get_credentials(requested_user_email)
                 
                 # Check if this is an MCP session
                 mcp_user = self._mcp_session_mapping.get(session_id)
@@ -337,8 +469,6 @@ class OAuth21SessionStore:
                             f"attempted to access credentials for {requested_user_email}"
                         )
                         return None
-                    # MCP session matches, allow access
-                    return self.get_credentials(requested_user_email)
             
             # Special case: Allow access if user has recently authenticated (for clients that don't send tokens)
             # CRITICAL SECURITY: This is ONLY allowed in stdio mode, NEVER in OAuth 2.1 mode
@@ -361,13 +491,15 @@ class OAuth21SessionStore:
                     f"Allowing credential access for {requested_user_email} based on recent authentication "
                     f"(stdio mode only - client not sending bearer token)"
                 )
-                return self.get_credentials(requested_user_email)
-            
-            # No session or token info available - deny access for security
-            logger.warning(
-                f"Credential access denied for {requested_user_email}: No valid session or token"
-            )
-            return None
+            elif not auth_token_email and not session_id and not allow_recent_auth:
+                # No session or token info available - deny access for security
+                logger.warning(
+                    f"Credential access denied for {requested_user_email}: No valid session or token"
+                )
+                return None
+        
+        # Validation passed - get credentials with file fallback (release lock)
+        return self.get_credentials(requested_user_email, user_id)
     
     def get_user_by_mcp_session(self, mcp_session_id: str) -> Optional[str]:
         """
