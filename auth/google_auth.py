@@ -113,22 +113,23 @@ def _find_any_credentials(
 
 
 def _get_user_credential_path(
-    user_google_email: str, base_dir: str = DEFAULT_CREDENTIALS_DIR
+    credential_identifier: str, base_dir: str = DEFAULT_CREDENTIALS_DIR
 ) -> str:
-    """Constructs the path to a user's credential file."""
+    """Constructs the path to a user's credential file using the provided identifier."""
     if not os.path.exists(base_dir):
         os.makedirs(base_dir)
         logger.info(f"Created credentials directory: {base_dir}")
-    return os.path.join(base_dir, f"{user_google_email}.json")
+    return os.path.join(base_dir, f"{credential_identifier}.json")
 
 
 def save_credentials_to_file(
+    credential_identifier: str,
     user_google_email: str,
     credentials: Credentials,
     base_dir: str = DEFAULT_CREDENTIALS_DIR,
 ):
-    """Saves user credentials to a file."""
-    creds_path = _get_user_credential_path(user_google_email, base_dir)
+    """Saves user credentials to a file using credential_identifier (user_id) as filename."""
+    creds_path = _get_user_credential_path(credential_identifier, base_dir)
     creds_data = {
         "token": credentials.token,
         "refresh_token": credentials.refresh_token,
@@ -137,14 +138,15 @@ def save_credentials_to_file(
         "client_secret": credentials.client_secret,
         "scopes": credentials.scopes,
         "expiry": credentials.expiry.isoformat() if credentials.expiry else None,
+        "user_email": user_google_email,  # Store email in the file for reference
     }
     try:
         with open(creds_path, "w") as f:
             json.dump(creds_data, f)
-        logger.info(f"Credentials saved for user {user_google_email} to {creds_path}")
+        logger.info(f"Credentials saved for user {user_google_email} (identifier: {credential_identifier}) to {creds_path}")
     except IOError as e:
         logger.error(
-            f"Error saving credentials for user {user_google_email} to {creds_path}: {e}"
+            f"Error saving credentials for user {user_google_email} (identifier: {credential_identifier}) to {creds_path}: {e}"
         )
         raise
 
@@ -183,11 +185,20 @@ def save_credentials_to_session(session_id: str, credentials: Credentials):
 def load_credentials_from_file(
     user_google_email: str, base_dir: str = DEFAULT_CREDENTIALS_DIR
 ) -> Optional[Credentials]:
-    """Loads user credentials from a file."""
+    """
+    Loads user credentials from a file.
+    
+    Args:
+        user_google_email: User identifier (user_id) used for credential file naming.
+        base_dir: Base directory for credential files.
+        
+    Returns:
+        Credentials object or None if not found.
+    """
     creds_path = _get_user_credential_path(user_google_email, base_dir)
     if not os.path.exists(creds_path):
         logger.info(
-            f"No credentials file found for user {user_google_email} at {creds_path}"
+            f"No credentials file found for identifier {user_google_email} at {creds_path}"
         )
         return None
 
@@ -205,7 +216,7 @@ def load_credentials_from_file(
                     expiry = expiry.replace(tzinfo=None)
             except (ValueError, TypeError) as e:
                 logger.warning(
-                    f"Could not parse expiry time for {user_google_email}: {e}"
+                    f"Could not parse expiry time for identifier {user_google_email}: {e}"
                 )
 
         credentials = Credentials(
@@ -218,12 +229,12 @@ def load_credentials_from_file(
             expiry=expiry,
         )
         logger.debug(
-            f"Credentials loaded for user {user_google_email} from {creds_path}"
+            f"Credentials loaded for identifier {user_google_email} from {creds_path}"
         )
         return credentials
     except (IOError, json.JSONDecodeError, KeyError) as e:
         logger.error(
-            f"Error loading or parsing credentials for user {user_google_email} from {creds_path}: {e}"
+            f"Error loading or parsing credentials for identifier {user_google_email} from {creds_path}: {e}"
         )
         return None
 
@@ -494,6 +505,7 @@ def handle_auth_callback(
     client_secrets_path: Optional[
         str
     ] = None,  # Deprecated: kept for backward compatibility
+    user_id: Optional[str] = None,
 ) -> Tuple[str, Credentials]:
     """
     Handles the callback from Google, exchanges the code for credentials,
@@ -507,6 +519,7 @@ def handle_auth_callback(
         credentials_base_dir: Base directory for credential files.
         session_id: Optional MCP session ID to associate with the credentials.
         client_secrets_path: (Deprecated) Path to client secrets file. Ignored if environment variables are set.
+        user_id: User ID to use for credential file naming.
 
     Returns:
         A tuple containing the user_google_email and the obtained Credentials object.
@@ -547,8 +560,14 @@ def handle_auth_callback(
         user_google_email = user_info["email"]
         logger.info(f"Identified user_google_email: {user_google_email}")
 
-        # Save the credentials to file
-        save_credentials_to_file(user_google_email, credentials, credentials_base_dir)
+        # Validate that user_id is provided - required for credential file naming
+        if not user_id:
+            error_msg = "user_id is required for credential storage. Please restart the OAuth flow with the user_id parameter."
+            logger.error(f"OAuth callback failed: {error_msg}")
+            raise ValueError(error_msg)
+
+        # Save the credentials to file using user_id
+        save_credentials_to_file(user_id, user_google_email, credentials, credentials_base_dir)
 
         # Always save to OAuth21SessionStore for centralized management
         store = get_oauth21_session_store()
@@ -749,7 +768,7 @@ def get_credentials(
             # Save refreshed credentials
             if user_google_email:  # Always save to file if email is known
                 save_credentials_to_file(
-                    user_google_email, credentials, credentials_base_dir
+                    user_google_email, user_google_email, credentials, credentials_base_dir
                 )
                 
                 # Also update OAuth21SessionStore

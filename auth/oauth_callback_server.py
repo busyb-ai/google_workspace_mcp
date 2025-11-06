@@ -49,6 +49,18 @@ class MinimalOAuthServer:
             state = request.query_params.get("state")
             code = request.query_params.get("code")
             error = request.query_params.get("error")
+            
+            # Decode state parameter to check for user_id
+            user_id = None
+            if state:
+                try:
+                    import base64
+                    import json
+                    state_data = json.loads(base64.urlsafe_b64decode(state).decode())
+                    user_id = state_data.get("user_id")
+                except Exception:
+                    # State is not encoded, just a regular CSRF token
+                    pass
 
             if error:
                 error_message = f"Authentication failed: Google returned an error: {error}. State: {state}."
@@ -78,7 +90,8 @@ class MinimalOAuthServer:
                     scopes=SCOPES,
                     authorization_response=str(request.url),
                     redirect_uri=redirect_uri,
-                    session_id=None
+                    session_id=None,
+                    user_id=user_id
                 )
 
                 logger.info(f"OAuth callback: Successfully authenticated user: {verified_user_id} (state: {state}).")
