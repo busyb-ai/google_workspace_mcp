@@ -54,6 +54,7 @@ A production-ready MCP server that integrates all major Google Workspace service
 ## Features
 
 - **🔐 Advanced OAuth 2.0 & OAuth 2.1**: Secure authentication with automatic token refresh, transport-aware callback handling, session management, centralized scope management, and OAuth 2.1 bearer token support for multi-user environments with innovative CORS proxy architecture
+- **☁️ S3 Credential Storage**: Store OAuth credentials in AWS S3 for multi-server deployments with automatic encryption and IAM-based access control
 - **📅 Google Calendar**: Full calendar management with event CRUD operations
 - **📁 Google Drive**: File operations with native Microsoft Office format support (.docx, .xlsx)
 - **📧 Gmail**: Complete email management with search, send, and draft capabilities
@@ -185,6 +186,24 @@ Claude Desktop stores these securely in the OS keychain; set them once in the ex
    export GOOGLE_PSE_API_KEY=your-custom-search-api-key  # Optional: Only needed for Google Custom Search tools
    export GOOGLE_PSE_ENGINE_ID=your-search-engine-id  # Optional: Only needed for Google Custom Search tools
    ```
+
+2.1. **S3 Credential Storage (Optional)**:
+
+Store OAuth credentials in AWS S3 for centralized, secure credential management across multiple servers:
+
+```bash
+# Configure S3 storage path
+export GOOGLE_MCP_CREDENTIALS_DIR="s3://your-bucket/credentials/"
+
+# AWS credentials (use IAM roles in production)
+export AWS_REGION="us-east-1"
+export AWS_ACCESS_KEY_ID="your-access-key"  # Or use IAM roles
+export AWS_SECRET_ACCESS_KEY="your-secret-key"  # Or use IAM roles
+```
+
+**Benefits**: Multi-server deployments, automatic encryption (SSE-S3), IAM-based access control, versioning support.
+
+See [Configuration Guide](docs/configuration.md#s3-credential-storage) for detailed setup including bucket creation, IAM policies, and security best practices.
 
 3. **Server Configuration**:
    The server's base URL and port can be customized using environment variables:
@@ -951,6 +970,7 @@ async def your_new_tool(service, param1: str, param2: int = 10):
 ## 🔒 Security
 
 - **Credentials**: Never commit `client_secret.json` or `.credentials/` directory
+- **S3 Storage**: User credentials stored in S3 are automatically encrypted with SSE-S3 (AES256); use IAM roles and private buckets in production
 - **OAuth Callback**: Uses `http://localhost:8000/oauth2callback` for development (requires `OAUTHLIB_INSECURE_TRANSPORT=1`)
 - **Transport-Aware Callbacks**: Stdio mode starts a minimal HTTP server only for OAuth, ensuring callbacks work in all modes
 - **Production**: Use HTTPS for callback URIs and configure accordingly
