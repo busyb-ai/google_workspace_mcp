@@ -144,14 +144,16 @@ async def oauth2_callback(request: Request):
     code = request.query_params.get("code")
     error = request.query_params.get("error")
     
-    # Decode state parameter to check for return_url
+    # Decode state parameter to check for return_url and user_id
     return_url = None
+    user_id = None
     if state:
         try:
             import base64
             import json
             state_data = json.loads(base64.urlsafe_b64decode(state).decode())
             return_url = state_data.get("return_url")
+            user_id = state_data.get("user_id")
         except Exception:
             # State is not encoded, just a regular CSRF token
             pass
@@ -190,7 +192,8 @@ async def oauth2_callback(request: Request):
             scopes=SCOPES,
             authorization_response=str(request.url),
             redirect_uri=get_oauth_redirect_uri_for_current_mode(),
-            session_id=None
+            session_id=None,
+            user_id=user_id
         )
 
         logger.info(f"OAuth callback: Successfully authenticated user: {verified_user_id}.")

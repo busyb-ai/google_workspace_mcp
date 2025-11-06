@@ -165,7 +165,7 @@ def _find_any_credentials(
 
 
 def _get_user_credential_path(
-    user_google_email: str, base_dir: str = DEFAULT_CREDENTIALS_DIR
+    credential_identifier: str, base_dir: str = DEFAULT_CREDENTIALS_DIR
 ) -> str:
     """
     Constructs the path to a user's credential file (local or S3).
@@ -174,42 +174,43 @@ def _get_user_credential_path(
     detects the storage type based on the path prefix (s3:// for S3, otherwise local).
 
     Args:
-        user_google_email: User's Google email address (used as filename)
+        credential_identifier: User identifier (user_id) used as filename
         base_dir: Base directory path (local path or S3 URI in format s3://bucket/path/)
 
     Returns:
         Full path to credential file:
-        - For local: /path/to/dir/{email}.json
-        - For S3: s3://bucket/path/{email}.json
+        - For local: /path/to/dir/{user_id}.json
+        - For S3: s3://bucket/path/{user_id}.json
 
     Examples:
         >>> # Local path
-        >>> _get_user_credential_path("user@example.com", "/credentials")
-        '/credentials/user@example.com.json'
+        >>> _get_user_credential_path("user123", "/credentials")
+        '/credentials/user123.json'
 
         >>> # S3 path
-        >>> _get_user_credential_path("user@example.com", "s3://my-bucket/credentials")
-        's3://my-bucket/credentials/user@example.com.json'
+        >>> _get_user_credential_path("user123", "s3://my-bucket/credentials")
+        's3://my-bucket/credentials/user123.json'
 
         >>> # S3 path with trailing slash
-        >>> _get_user_credential_path("user@example.com", "s3://my-bucket/credentials/")
-        's3://my-bucket/credentials/user@example.com.json'
+        >>> _get_user_credential_path("user123", "s3://my-bucket/credentials/")
+        's3://my-bucket/credentials/user123.json'
     """
     if is_s3_path(base_dir):
         # S3 path - ensure trailing slash and append filename
         # No directory creation needed for S3 (S3 is a flat namespace)
         if not base_dir.endswith('/'):
             base_dir += '/'
-        return f"{base_dir}{user_google_email}.json"
+        return f"{base_dir}{credential_identifier}.json"
     else:
         # Local path - create directory if needed (existing logic)
         if not os.path.exists(base_dir):
             os.makedirs(base_dir)
             logger.info(f"Created credentials directory: {base_dir}")
-        return os.path.join(base_dir, f"{user_google_email}.json")
+        return os.path.join(base_dir, f"{credential_identifier}.json")
 
 
 def save_credentials_to_file(
+    credential_identifier: str,
     user_google_email: str,
     credentials: Credentials,
     base_dir: str = DEFAULT_CREDENTIALS_DIR,
@@ -223,7 +224,8 @@ def save_credentials_to_file(
     - S3: s3://bucket-name/path/
 
     Args:
-        user_google_email: User's Google email address
+        credential_identifier: User identifier (user_id) for credential file naming
+        user_google_email: User's Google email address (stored in file for reference)
         credentials: Google OAuth credentials object
         base_dir: Base directory path (local or S3)
 
@@ -232,7 +234,7 @@ def save_credentials_to_file(
         ClientError: If S3 upload fails
         Exception: For other errors during credential save
     """
-    creds_path = _get_user_credential_path(user_google_email, base_dir)
+    creds_path = _get_user_credential_path(credential_identifier, base_dir)
     creds_data = {
         "token": credentials.token,
         "refresh_token": credentials.refresh_token,
@@ -241,6 +243,7 @@ def save_credentials_to_file(
         "client_secret": credentials.client_secret,
         "scopes": credentials.scopes,
         "expiry": credentials.expiry.isoformat() if credentials.expiry else None,
+        "user_email": user_google_email,  # Store email in the file for reference
     }
 
     try:
@@ -255,7 +258,7 @@ def save_credentials_to_file(
             logger.info(f"Credentials saved for user {user_google_email} to {creds_path}")
     except Exception as e:
         logger.error(
-            f"Error saving credentials for user {user_google_email} to {creds_path}: {e}"
+            f"Error saving credentials for user {user_google_email} (identifier: {credential_identifier}) to {creds_path}: {e}"
         )
         raise
 
@@ -292,43 +295,43 @@ def save_credentials_to_session(session_id: str, credentials: Credentials):
 
 
 def load_credentials_from_file(
-    user_google_email: str, base_dir: str = DEFAULT_CREDENTIALS_DIR
+    credential_identifier: str, base_dir: str = DEFAULT_CREDENTIALS_DIR
 ) -> Optional[Credentials]:
     """
     Loads user credentials from a file or S3.
 
     Args:
-        user_google_email: User's Google email address
+        credential_identifier: User identifier (user_id) for credential file naming
         base_dir: Base directory path (local or S3)
 
     Returns:
         Credentials object if found, None otherwise
     """
-    creds_path = _get_user_credential_path(user_google_email, base_dir)
+    creds_path = _get_user_credential_path(credential_identifier, base_dir)
 
     try:
         if is_s3_path(creds_path):
             # Check if file exists in S3
             if not s3_file_exists(creds_path):
                 logger.info(
-                    f"No credentials file found for user {user_google_email} in S3: {creds_path}"
+                    f"No credentials file found for identifier {credential_identifier} in S3: {creds_path}"
                 )
                 return None
 
             # Download from S3
             creds_data = s3_download_json(creds_path)
-            logger.debug(f"Downloaded credentials from S3 for user {user_google_email}")
+            logger.debug(f"Downloaded credentials from S3 for identifier {credential_identifier}")
         else:
             # Load from local file (existing logic)
             if not os.path.exists(creds_path):
                 logger.info(
-                    f"No credentials file found for user {user_google_email} at {creds_path}"
+                    f"No credentials file found for identifier {credential_identifier} at {creds_path}"
                 )
                 return None
 
             with open(creds_path, "r") as f:
                 creds_data = json.load(f)
-            logger.debug(f"Loaded credentials from local file for user {user_google_email}")
+            logger.debug(f"Loaded credentials from local file for identifier {credential_identifier}")
 
         # Parse expiry if present (existing logic - keep unchanged)
         expiry = None
@@ -340,7 +343,7 @@ def load_credentials_from_file(
                     expiry = expiry.replace(tzinfo=None)
             except (ValueError, TypeError) as e:
                 logger.warning(
-                    f"Could not parse expiry time for {user_google_email}: {e}"
+                    f"Could not parse expiry time for identifier {credential_identifier}: {e}"
                 )
 
         # Create Credentials object (existing logic - keep unchanged)
@@ -355,19 +358,19 @@ def load_credentials_from_file(
         )
 
         logger.debug(
-            f"Credentials loaded for user {user_google_email} from {creds_path}"
+            f"Credentials loaded for identifier {credential_identifier} from {creds_path}"
         )
         return credentials
 
     except (IOError, json.JSONDecodeError, KeyError) as e:
         logger.error(
-            f"Error loading or parsing credentials for user {user_google_email} from {creds_path}: {e}"
+            f"Error loading or parsing credentials for identifier {credential_identifier} from {creds_path}: {e}"
         )
         return None
 
 
 def delete_credentials_file(
-    user_google_email: str,
+    credential_identifier: str,
     base_dir: str = DEFAULT_CREDENTIALS_DIR
 ) -> bool:
     """
@@ -383,7 +386,7 @@ def delete_credentials_file(
     - Comprehensive logging for troubleshooting
 
     Args:
-        user_google_email: User's Google email address (used to construct filename)
+        credential_identifier: User identifier (user_id) used to construct filename
         base_dir: Base directory path (local path or S3 URI in format s3://bucket/path/)
             Defaults to DEFAULT_CREDENTIALS_DIR from environment or standard location.
 
@@ -395,19 +398,19 @@ def delete_credentials_file(
 
     Examples:
         >>> # Delete local credential file
-        >>> delete_credentials_file("user@example.com", "/path/to/credentials")
+        >>> delete_credentials_file("user123", "/path/to/credentials")
         True  # File existed and was deleted
 
         >>> # Delete S3 credential file
-        >>> delete_credentials_file("user@example.com", "s3://my-bucket/credentials/")
+        >>> delete_credentials_file("user123", "s3://my-bucket/credentials/")
         True  # S3 delete succeeded
 
         >>> # Try to delete non-existent local file
-        >>> delete_credentials_file("user@example.com", "/path/to/credentials")
+        >>> delete_credentials_file("user123", "/path/to/credentials")
         False  # File didn't exist
 
         >>> # Error during deletion
-        >>> delete_credentials_file("user@example.com", "s3://invalid-bucket/")
+        >>> delete_credentials_file("user123", "s3://invalid-bucket/")
         False  # Error occurred (logged)
 
     Note:
@@ -415,26 +418,26 @@ def delete_credentials_file(
         when users revoke their authentication. It ensures credentials are removed
         from both the session store and persistent storage.
     """
-    creds_path = _get_user_credential_path(user_google_email, base_dir)
+    creds_path = _get_user_credential_path(credential_identifier, base_dir)
 
     try:
         if is_s3_path(creds_path):
             # Delete from S3
             # Note: S3 delete is idempotent (deleting non-existent file doesn't error)
             s3_delete_file(creds_path)
-            logger.info(f"Deleted credentials for {user_google_email} from S3: {creds_path}")
+            logger.info(f"Deleted credentials for identifier {credential_identifier} from S3: {creds_path}")
             return True
         else:
             # Delete local file
             if os.path.exists(creds_path):
                 os.remove(creds_path)
-                logger.info(f"Deleted credentials for {user_google_email} from {creds_path}")
+                logger.info(f"Deleted credentials for identifier {credential_identifier} from {creds_path}")
                 return True
             else:
-                logger.info(f"No credentials file to delete for {user_google_email} at {creds_path}")
+                logger.info(f"No credentials file to delete for identifier {credential_identifier} at {creds_path}")
                 return False
     except Exception as e:
-        logger.error(f"Error deleting credentials for {user_google_email} from {creds_path}: {e}", exc_info=True)
+        logger.error(f"Error deleting credentials for identifier {credential_identifier} from {creds_path}: {e}", exc_info=True)
         return False
 
 
@@ -704,6 +707,7 @@ def handle_auth_callback(
     client_secrets_path: Optional[
         str
     ] = None,  # Deprecated: kept for backward compatibility
+    user_id: Optional[str] = None,
 ) -> Tuple[str, Credentials]:
     """
     Handles the callback from Google, exchanges the code for credentials,
@@ -717,6 +721,7 @@ def handle_auth_callback(
         credentials_base_dir: Base directory for credential files.
         session_id: Optional MCP session ID to associate with the credentials.
         client_secrets_path: (Deprecated) Path to client secrets file. Ignored if environment variables are set.
+        user_id: User ID to use for credential file naming.
 
     Returns:
         A tuple containing the user_google_email and the obtained Credentials object.
@@ -757,8 +762,14 @@ def handle_auth_callback(
         user_google_email = user_info["email"]
         logger.info(f"Identified user_google_email: {user_google_email}")
 
-        # Save the credentials to file
-        save_credentials_to_file(user_google_email, credentials, credentials_base_dir)
+        # Validate that user_id is provided - required for credential file naming
+        if not user_id:
+            error_msg = "user_id is required for credential storage. Please restart the OAuth flow with the user_id parameter."
+            logger.error(f"OAuth callback failed: {error_msg}")
+            raise ValueError(error_msg)
+
+        # Save the credentials to file using user_id
+        save_credentials_to_file(user_id, user_google_email, credentials, credentials_base_dir)
 
         # Always save to OAuth21SessionStore for centralized management
         store = get_oauth21_session_store()
@@ -792,6 +803,7 @@ def get_credentials(
     client_secrets_path: Optional[str] = None,
     credentials_base_dir: str = DEFAULT_CREDENTIALS_DIR,
     session_id: Optional[str] = None,
+    user_id: Optional[str] = None,  # Optional user_id for credential file lookup
 ) -> Optional[Credentials]:
     """
     Retrieves stored credentials, prioritizing OAuth 2.1 store, then session, then file. Refreshes if necessary.
@@ -804,6 +816,7 @@ def get_credentials(
         client_secrets_path: Path to client secrets, required for refresh if not in creds.
         credentials_base_dir: Base directory for credential files.
         session_id: Optional MCP session ID.
+        user_id: Optional user ID for credential file lookup (preferred over email).
 
     Returns:
         Valid Credentials object or None.
@@ -897,12 +910,14 @@ def get_credentials(
                     f"[get_credentials] Loaded credentials from session for session_id '{session_id}'."
                 )
 
-        if not credentials and user_google_email:
+        # Try loading from file using user_id (preferred) or user_google_email (fallback)
+        credential_identifier = user_id if user_id else user_google_email
+        if not credentials and credential_identifier:
             logger.debug(
-                f"[get_credentials] No session credentials, trying file for user_google_email '{user_google_email}'."
+                f"[get_credentials] No session credentials, trying file for identifier '{credential_identifier}'."
             )
             credentials = load_credentials_from_file(
-                user_google_email, credentials_base_dir
+                credential_identifier, credentials_base_dir
             )
             if credentials and session_id:
                 logger.debug(
@@ -959,7 +974,7 @@ def get_credentials(
             # Save refreshed credentials
             if user_google_email:  # Always save to file if email is known
                 save_credentials_to_file(
-                    user_google_email, credentials, credentials_base_dir
+                    user_google_email, user_google_email, credentials, credentials_base_dir
                 )
                 
                 # Also update OAuth21SessionStore

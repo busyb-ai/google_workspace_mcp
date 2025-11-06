@@ -36,21 +36,38 @@ async def handle_oauth_authorize(request: Request):
     # Get query parameters
     params = dict(request.query_params)
     
-    # Extract and encode return_url in state parameter if provided
+    # Extract and encode return_url and user_id in state parameter
     return_url = params.pop("return_url", None)
-    if return_url:
-        import base64
-        import json
-        # Encode return_url in state parameter
-        state_data = {
-            "return_url": return_url,
-            "csrf": params.get("state", os.urandom(16).hex())  # Keep original state for CSRF if provided
-        }
-        params["state"] = base64.urlsafe_b64encode(json.dumps(state_data).encode()).decode()
-        logger.info(f"OAuth flow with return_url: {return_url}")
-    elif "state" not in params:
-        # Generate a random state if none provided
-        params["state"] = os.urandom(16).hex()
+    user_id = params.pop("user_id", None)
+    
+    # Validate that BOTH return_url and user_id are provided for proper OAuth flow
+    if not return_url or not user_id:
+        missing = []
+        if not return_url:
+            missing.append("'return_url'")
+        if not user_id:
+            missing.append("'user_id'")
+        error_msg = f"OAuth authorization requires both 'return_url' and 'user_id' parameters. Missing: {', '.join(missing)}. Please restart the OAuth flow with proper parameters."
+        logger.error(f"OAuth authorization failed: {error_msg}")
+        return JSONResponse(
+            status_code=400,
+            content={
+                "error": "invalid_request",
+                "error_description": error_msg
+            },
+            headers={"Access-Control-Allow-Origin": "*"}
+        )
+    
+    # Encode return_url and user_id in state parameter
+    import base64
+    import json
+    state_data = {
+        "csrf": params.get("state", os.urandom(16).hex()),
+        "return_url": return_url,
+        "user_id": user_id
+    }
+    logger.info(f"OAuth flow with return_url: {return_url}, user_id: {user_id}")
+    params["state"] = base64.urlsafe_b64encode(json.dumps(state_data).encode()).decode()
     
     # Handle login_hint parameter for pre-filling user email
     login_hint = params.get("login_hint")
@@ -207,7 +224,7 @@ async def handle_proxy_token_exchange(request: Request):
                                         )
 
                                         # Save credentials to file for legacy auth
-                                        save_credentials_to_file(user_email, credentials)
+                                        save_credentials_to_file(user_email, user_email, credentials)
                                         logger.info(f"Saved Google credentials for {user_email}")
                                 except jwt.ExpiredSignatureError:
                                     logger.error("ID token has expired - cannot extract user email")
