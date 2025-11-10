@@ -7,7 +7,7 @@ import logging
 import os
 
 from datetime import datetime
-from typing import List, Optional, Tuple, Dict, Any
+from typing import List, Optional, Tuple, Dict, Any, TYPE_CHECKING
 
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
@@ -16,7 +16,6 @@ from google.auth.exceptions import RefreshError
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from auth.scopes import SCOPES
-from auth.oauth21_session_store import get_oauth21_session_store
 from auth.s3_storage import is_s3_path, s3_upload_json, s3_file_exists, s3_download_json, s3_list_json_files, s3_delete_file
 from core.config import (
     WORKSPACE_MCP_PORT,
@@ -25,6 +24,9 @@ from core.config import (
     get_oauth_redirect_uri,
 )
 from core.context import get_fastmcp_session_id
+
+if TYPE_CHECKING:
+    from auth.oauth21_session_store import OAuth21SessionStore
 
 # Try to import FastMCP dependencies (may not be available in all environments)
 try:
@@ -54,6 +56,12 @@ def get_default_credentials_dir():
 
 
 DEFAULT_CREDENTIALS_DIR = get_default_credentials_dir()
+
+
+def _get_oauth21_session_store():
+    """Lazy import to avoid circular dependency during module initialization."""
+    from auth.oauth21_session_store import get_oauth21_session_store
+    return get_oauth21_session_store()
 
 # Session credentials now handled by OAuth21SessionStore - no local cache needed
 # Centralized Client Secrets Path Logic
@@ -277,7 +285,7 @@ def save_credentials_to_session(session_id: str, credentials: Credentials):
             logger.debug(f"Could not decode id_token to get email: {e}")
     
     if user_email:
-        store = get_oauth21_session_store()
+        store = _get_oauth21_session_store()
         store.store_session(
             user_email=user_email,
             access_token=credentials.token,
@@ -443,7 +451,7 @@ def delete_credentials_file(
 
 def load_credentials_from_session(session_id: str) -> Optional[Credentials]:
     """Loads user credentials from OAuth21SessionStore."""
-    store = get_oauth21_session_store()
+    store = _get_oauth21_session_store()
     credentials = store.get_credentials_by_mcp_session(session_id)
     if credentials:
         logger.debug(
@@ -772,7 +780,7 @@ def handle_auth_callback(
         save_credentials_to_file(user_id, user_google_email, credentials, credentials_base_dir)
 
         # Always save to OAuth21SessionStore for centralized management
-        store = get_oauth21_session_store()
+        store = _get_oauth21_session_store()
         store.store_session(
             user_email=user_google_email,
             access_token=credentials.token,
@@ -824,7 +832,7 @@ def get_credentials(
     # First, try OAuth 2.1 session store if we have a session_id (FastMCP session)
     if session_id:
         try:
-            store = get_oauth21_session_store()
+            store = _get_oauth21_session_store()
 
             # Try to get credentials by MCP session
             credentials = store.get_credentials_by_mcp_session(session_id)
@@ -978,7 +986,7 @@ def get_credentials(
                 )
                 
                 # Also update OAuth21SessionStore
-                store = get_oauth21_session_store()
+                store = _get_oauth21_session_store()
                 store.store_session(
                     user_email=user_google_email,
                     access_token=credentials.token,
