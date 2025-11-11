@@ -256,14 +256,13 @@ class OAuth21SessionStore:
                         scopes=session_info.get("scopes", []),
                         expiry=session_info.get("expiry"),
                     )
-                    
-                    logger.debug(f"Retrieved OAuth 2.1 credentials for {user_email} from in-memory store")
+
                     return credentials
-                    
+
                 except Exception as e:
                     logger.error(f"Failed to create credentials for {user_email}: {e}")
                     return None
-            
+    
             # No in-memory session found - fall back to file system
             logger.debug(f"No in-memory OAuth 2.1 session found for {user_email}, trying file fallback")
             
@@ -314,10 +313,9 @@ class OAuth21SessionStore:
             try:
                 credentials = load_credentials_from_file(user_id, credentials_dir)
                 if credentials:
-                    logger.info(f"Loaded credentials from file using user_id: {user_id}")
                     return credentials
             except Exception as e:
-                logger.debug(f"Could not load credentials using user_id {user_id}: {e}")
+                logger.debug(f"[OAuth] Could not load credentials using user_id {user_id}: {e}")
         
         # Strategy 2: Scan credential files for matching email (works for both S3 and local)
         try:
@@ -331,17 +329,17 @@ class OAuth21SessionStore:
                         try:
                             creds_data = s3_download_json(file_path)
                             if creds_data.get("user_email") == user_email:
-                                logger.info(f"Found matching credential file in S3: {file_path}")
+                                logger.info(f"[OAuth] Found matching credential file in S3: {file_path}")
                                 return self._create_credentials_from_data(creds_data)
                         except Exception as e:
-                            logger.debug(f"Error checking S3 file {file_path}: {e}")
+                            logger.debug(f"[OAuth] Error checking S3 file {file_path}: {e}")
                             continue
                 except Exception as e:
-                    logger.error(f"Error scanning S3 bucket {credentials_dir}: {e}")
+                    logger.error(f"[OAuth] Error scanning S3 bucket {credentials_dir}: {e}")
             else:
                 # Scan local directory
                 if not os.path.exists(credentials_dir):
-                    logger.debug(f"Credentials directory does not exist: {credentials_dir}")
+                    logger.debug(f"[OAuth] Credentials directory does not exist: {credentials_dir}")
                     return None
                 
                 for filename in os.listdir(credentials_dir):
@@ -352,17 +350,17 @@ class OAuth21SessionStore:
                                 creds_data = json.load(f)
                             
                             if creds_data.get("user_email") == user_email:
-                                logger.info(f"Found matching credential file: {filename}")
+                                logger.info(f"[OAuth] Found matching credential file: {filename}")
                                 return self._create_credentials_from_data(creds_data)
                         except Exception as e:
-                            logger.debug(f"Error reading credential file {filename}: {e}")
+                            logger.debug(f"[OAuth] Error reading credential file {filename}: {e}")
                             continue
             
-            logger.debug(f"No credential file found for email: {user_email}")
+            logger.debug(f"[OAuth] No credential file found for email: {user_email}")
             return None
             
         except Exception as e:
-            logger.error(f"Error scanning credential files for {user_email}: {e}")
+            logger.error(f"[OAuth] Error scanning credential files for {user_email}: {e}")
             return None
     
     def _create_credentials_from_data(self, creds_data: dict) -> Optional[Credentials]:

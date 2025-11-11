@@ -129,7 +129,11 @@ class GoogleRemoteAuthProvider(RemoteAuthProvider):
                     url = f"https://oauth2.googleapis.com/tokeninfo?access_token={token}"
                     async with session.get(url) as response:
                         if response.status != 200:
-                            logger.error(f"Token verification failed: {response.status}")
+                            try:
+                                error_detail = await response.text()
+                            except Exception:
+                                error_detail = "<no body>"
+                            logger.error(f"Token verification failed: {response.status} - {error_detail}")
                             return None
                         
                         token_info = await response.json()

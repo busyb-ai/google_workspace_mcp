@@ -759,7 +759,6 @@ def handle_auth_callback(
         # Note: fetch_token will use the redirect_uri configured in the flow
         flow.fetch_token(authorization_response=authorization_response)
         credentials = flow.credentials
-        logger.info("Successfully exchanged authorization code for tokens.")
 
         # Get user info to determine user_id (using email here)
         user_info = get_user_info(credentials)
@@ -801,7 +800,7 @@ def handle_auth_callback(
         return user_google_email, credentials
 
     except Exception as e:  # Catch specific exceptions like FlowExchangeError if needed
-        logger.error(f"Error handling auth callback: {e}")
+        logger.error(f"[OAuth] Error handling auth callback: {e}", exc_info=True)
         raise  # Re-raise for the caller
 
 
