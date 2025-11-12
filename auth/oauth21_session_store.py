@@ -16,7 +16,7 @@ from datetime import datetime, timedelta
 from dataclasses import dataclass
 
 from google.oauth2.credentials import Credentials
-from auth.google_auth import load_credentials_from_file, get_default_credentials_dir
+from auth.credential_utils import load_credentials_from_file, get_default_credentials_dir
 from auth.s3_storage import is_s3_path, s3_list_json_files, s3_download_json
 
 logger = logging.getLogger(__name__)
