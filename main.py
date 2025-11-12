@@ -222,3 +222,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+# Test comment for path trigger verification - Task 3.7
+# This change should trigger the GitHub Actions workflow since main.py is in the watched paths
