@@ -555,3 +555,5 @@ def get_cache_stats() -> Dict[str, Any]:
         "expired_entries": expired_entries,
         "cache_ttl_minutes": _cache_ttl.total_seconds() / 60
     }
+# Test comment for path trigger verification - Task 3.7
+# This change should trigger the GitHub Actions workflow since auth/** is in the watched paths
