@@ -1,0 +1,104 @@
+name: Deploy Google Workspace MCP to AWS ECS
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'auth/**'
+      - 'core/**'
+      - 'gcalendar/**'
+      - 'gchat/**'
+      - 'gdocs/**'
+      - 'gdrive/**'
+      - 'gforms/**'
+      - 'gmail/**'
+      - 'gsearch/**'
+      - 'gsheets/**'
+      - 'gslides/**'
+      - 'gtasks/**'
+      - 'main.py'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - 'Dockerfile'
+      - 'docker-entrypoint.sh'
+      - '.dockerignore'
+      - '.github/workflows/deploy-google-workspace-mcp.yml'
+  workflow_dispatch: # Allow manual triggers
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com
+  ECR_REPOSITORY: busyb-google-workspace-mcp
+
+jobs:
+  build-and-deploy:
+    name: Build and Deploy Google Workspace MCP
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, tag, and push Docker image
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          echo "Building Docker image..."
+          docker build -t ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }} .
+
+          echo "Tagging image as latest..."
+          docker tag ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }} \
+                     ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:latest
+
+          echo "Pushing image with SHA tag..."
+          docker push ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
+
+          echo "Pushing image with latest tag..."
+          docker push ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:latest
+
+          echo "✓ Image pushed successfully"
+
+      - name: Update ECS service
+        run: |
+          echo "Forcing new deployment for ECS service..."
+          aws ecs update-service \
+            --cluster ${{ secrets.ECS_CLUSTER }} \
+            --service ${{ secrets.ECS_SERVICE_GOOGLE_WORKSPACE }} \
+            --force-new-deployment \
+            --region ${{ env.AWS_REGION }}
+
+          echo "✓ Deployment initiated"
+
+      - name: Wait for service stability
+        run: |
+          echo "Waiting for ECS service to stabilize..."
+          aws ecs wait services-stable \
+            --cluster ${{ secrets.ECS_CLUSTER }} \
+            --services ${{ secrets.ECS_SERVICE_GOOGLE_WORKSPACE }} \
+            --region ${{ env.AWS_REGION }}
+
+          echo "✓ Service is stable and running"
+
+      - name: Get deployment status
+        if: always()
+        run: |
+          echo "Getting final deployment status..."
+          aws ecs describe-services \
+            --cluster ${{ secrets.ECS_CLUSTER }} \
+            --services ${{ secrets.ECS_SERVICE_GOOGLE_WORKSPACE }} \
+            --query 'services[0].deployments' \
+            --region ${{ env.AWS_REGION }}
