@@ -60,3 +60,6 @@ RUN echo "=== Debug: Final startup test ===" && \
 
 # Command to run the application (use uv run to ensure virtual environment)
 CMD ["uv", "run", "main.py", "--transport", "streamable-http"]
+
+# Test comment for path trigger verification - Task 3.7
+# This change should trigger the GitHub Actions workflow since Dockerfile is in the watched paths
