@@ -1,0 +1,76 @@
+name: Build and Deploy Google Workspace MCP to AWS ECS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:  # Allow manual triggers
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REGISTRY: 758888582357.dkr.ecr.us-east-1.amazonaws.com
+
+jobs:
+  # Build and Push Google Workspace MCP
+  build-google-workspace-mcp:
+    name: Build Google Workspace MCP
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, tag, and push image
+        env:
+          ECR_REPOSITORY: busyb-google-workspace-mcp
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+      - name: Register task definition
+        id: register-task-def
+        continue-on-error: true
+        run: |
+          set +e
+          TASK_DEF_OUTPUT=$(aws ecs register-task-definition \
+            --cli-input-json file://ecs/task-definition-google-workspace-mcp.json \
+            --region ${{ env.AWS_REGION }} 2>&1)
+          EXIT_CODE=$?
+          set -e
+
+          if [ $EXIT_CODE -eq 0 ]; then
+            TASK_DEF_ARN=$(echo "$TASK_DEF_OUTPUT" | jq -r '.taskDefinition.taskDefinitionArn')
+            echo "task_def_arn=$TASK_DEF_ARN" >> $GITHUB_OUTPUT
+            echo "Task definition registered: $TASK_DEF_ARN"
+          else
+            echo "Failed to register task definition:"
+            echo "$TASK_DEF_OUTPUT"
+            echo "task_def_arn=" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+      - name: Update ECS service
+        if: steps.register-task-def.outputs.task_def_arn != ''
+        continue-on-error: true
+        run: |
+          aws ecs update-service \
+            --cluster ${{ secrets.ECS_CLUSTER }} \
+            --service ${{ secrets.ECS_SERVICE_GOOGLE }} \
+            --task-definition ${{ steps.register-task-def.outputs.task_def_arn }} \
+            --force-new-deployment \
+            --region ${{ env.AWS_REGION }} || echo "Service not found"
