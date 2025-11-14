@@ -94,19 +94,31 @@ When working with code in this repository, please adhere to the following rules:
    - If you are continuing work on a plan that has already started, you should continue on the branch for that plan.
    - If you are starting a new plan and not already in a worktree, create a new branch from `main` with a descriptive name for the feature or fix you are working on, and make sure to move the working directory to that branch.
 2. Ensure that all new code is well-documented with docstrings and comments where necessary.
-3. Always follow coding best-practices for Python and the specific frameworks/libraries used in this repository.
-4. Do not over-engineer solutions. Keep things as simple as possible while still meeting requirements.
-5. Always stick as close to official documentation and best practices as possible.
-6. Do not write unit tests unless explicitly instructed to do so.
-7. Do not run unit tests unless explicitly instructed to do so.
-8. If you encounter any issues or have questions about the codebase, please ask for clarification before proceeding.
-9. Follow the existing coding style and conventions used in the repository.
-10. Ensure that any changes you make do not break existing functionality.
-11. If you are unsure about any aspect of the code or the task at hand, please ask for clarification before proceeding.
-12. When making changes, consider the impact on other parts of the system and ensure compatibility.
-13. Always prioritize code readability and maintainability.
-14. If you are making significant changes, consider discussing them with the team first to ensure alignment.
-15. When working on a plan, ensure that you understand the overall goal and how your changes fit into that goal.
+3. Do not over-engineer solutions. Keep things as simple as possible while still meeting requirements.
+4. Always stick as close to official documentation and best practices as possible.
+5. Do not write unit tests unless explicitly instructed to do so.
+6. Do not run unit tests unless explicitly instructed to do so.
+7. If you encounter any issues or have questions about the codebase, please ask for clarification before proceeding.
+8. Follow the existing coding style and conventions used in the repository.
+9. Ensure that any changes you make do not break existing functionality.
+10. If you are unsure about any aspect of the code or the task at hand, please ask for clarification before proceeding.
+11. When making changes, consider the impact on other parts of the system and ensure compatibility.
+12. Always prioritize code readability and maintainability.
+13. If you are making significant changes, consider discussing them with the team first to ensure alignment.
+14. When working on a plan, ensure that you understand the overall goal and how your changes fit into that goal.
+15. Make sure that when you create detailed plans, you create small, numbered tasks.
+16. When creating detailed plans, make sure to include a checklist at the bottom of the file for tracking progress.
+17. When doing a task that involves or interacts with other parts of the codebase, make sure to evaluate if there are other
+    places in the codebase that need to be changed to reflect the changes being made.
+18. When doing a task that involves or interacts with other parts of the codebase, make sure to use the naming conventions, existing environment variables, and existing variable names so that the two pieces connect to each other correctly.
+19. Ensure that the plan created is not too complex.  MVP implementations should be as simple as possible while still meeting the requirements.
+20. When coding in python, always use type hints.
+21. Keep notes organized in the agent_notes/ folder.
+22. Keep tests organized in the tests/ folder (and create subdirectories as needed).
+23. Keep everything contained in its own folders, do not just write files in the root directory unless it is necessary (like plan files, git files, configurations, etc.).
+24. Make sure that individual dockerized MCP servers are contained in their own folders, including the docker files, requirements.txt, and any other necessary files.
+25. Do not add a -e line at the top of requirements.txt files.
+26. When debugging a complicated issue, always assume that the problem is a simple one, go through simple solutions, and look for simple problems before jumping to complex problems and even more complex solutions.  We only want to make large, complex changes to our code if absolutely necessary. Always start simple.
 
 ### Documentation
 

@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  google-workspace-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: google-workspace-mcp:local
+    container_name: google-workspace-mcp-dev
+    ports:
+      - "8000:8000"
+    environment:
+      # Load from .env file or override here
+      - GOOGLE_OAUTH_CLIENT_ID=${GOOGLE_OAUTH_CLIENT_ID}
+      - GOOGLE_OAUTH_CLIENT_SECRET=${GOOGLE_OAUTH_CLIENT_SECRET}
+      - MCP_GOOGLE_CREDENTIALS_DIR=${MCP_GOOGLE_CREDENTIALS_DIR:-/app/.credentials}
+      - WORKSPACE_MCP_PORT=8000
+      - WORKSPACE_MCP_BASE_URI=http://localhost
+      - MCP_ENABLE_OAUTH21=true
+      - OAUTHLIB_INSECURE_TRANSPORT=1
+    volumes:
+      # Mount credentials directory for persistence (optional)
+      - ./.credentials:/app/.credentials
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s

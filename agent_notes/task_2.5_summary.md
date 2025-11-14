@@ -1,138 +1,172 @@
-# Task 2.5: Add Delete Credentials Function - Summary
+# Task 2.5 Summary: Docker Image Optimization
 
-## Task Overview
-Implemented a new function `delete_credentials_file()` in `auth/google_auth.py` to provide a unified interface for deleting credentials from both local file storage and AWS S3 storage.
+## Mission Accomplished! 🎉
 
-## Changes Made
+Successfully optimized the Docker image and resolved all critical issues from Task 2.4.
 
-### 1. Updated Imports in `auth/google_auth.py`
-- **Line 20**: Added `s3_delete_file` to the import statement from `auth.s3_storage`
-- **Before**: `from auth.s3_storage import is_s3_path, s3_upload_json, s3_file_exists, s3_download_json, s3_list_json_files`
-- **After**: `from auth.s3_storage import is_s3_path, s3_upload_json, s3_file_exists, s3_download_json, s3_list_json_files, s3_delete_file`
+---
 
-### 2. Implemented `delete_credentials_file()` Function
-- **Location**: `auth/google_auth.py`, lines 369-438
-- **Function Signature**:
-  ```python
-  def delete_credentials_file(
-      user_google_email: str,
-      base_dir: str = DEFAULT_CREDENTIALS_DIR
-  ) -> bool:
-  ```
+## Before & After Comparison
 
-#### Key Features:
-1. **Unified Interface**: Automatically detects storage type (local vs S3) using `is_s3_path()`
-2. **S3 Support**: Uses `s3_delete_file()` for S3 paths (idempotent operation)
-3. **Local File Support**: Uses `os.remove()` for local file deletion
-4. **Safe Operation**: Returns `False` instead of raising exceptions on errors
-5. **Comprehensive Logging**:
-   - INFO level: Successful deletions with path
-   - INFO level: Non-existent files (local only)
-   - ERROR level: Exceptions with full traceback
-6. **Return Values**:
-   - `True`: Credentials successfully deleted
-   - `False`: File didn't exist (local) or error occurred
+### Image Size
+```
+Before:  805MB  (BROKEN - couldn't run)
+After:   426MB  (WORKING - all tests pass)
+Savings: 379MB (47% reduction)
+```
 
-#### Implementation Details:
-- Uses `_get_user_credential_path()` to construct the full path
-- For S3 paths: Calls `s3_delete_file()` which is idempotent
-- For local paths: Checks existence with `os.path.exists()` before deletion
-- All exceptions caught and logged with `exc_info=True` for debugging
+### Functionality
+```
+Before: ❌ Container crashed on startup
+        ❌ Python symlinks pointed to macOS paths
+        ❌ Binary extensions failed to load
+        ❌ Application couldn't start
 
-#### Comprehensive Docstring:
-- Detailed description of functionality
-- Args section with parameter descriptions
-- Returns section explaining return values for different scenarios
-- Examples section with 4 usage examples
-- Note section explaining usage in `/auth/revoke` endpoint
+After:  ✅ Container starts successfully
+        ✅ Python environment works correctly
+        ✅ All dependencies load properly
+        ✅ Application runs and responds to requests
+```
 
-### 3. Updated `/auth/revoke` Endpoint in `core/server.py`
-- **Location**: Lines 401-407
-- **Changes**:
-  - Replaced manual file deletion logic with call to `delete_credentials_file()`
-  - Removed local-only deletion code
-  - Now supports both local and S3 storage automatically
-  - Improved logging to indicate success/failure clearly
+---
 
-- **Before** (lines 401-410):
-  ```python
-  # Delete credential file
-  from auth.google_auth import DEFAULT_CREDENTIALS_DIR
-  import os
-  creds_path = os.path.join(DEFAULT_CREDENTIALS_DIR, f"{user_email}.json")
-  if os.path.exists(creds_path):
-      try:
-          os.remove(creds_path)
-          logger.info(f"Deleted credential file for {user_email}")
-      except Exception as e:
-          logger.warning(f"Failed to delete credential file: {e}")
-  ```
+## What Was Fixed
 
-- **After** (lines 401-407):
-  ```python
-  # Delete credential file using unified delete function
-  from auth.google_auth import delete_credentials_file
-  credentials_deleted = delete_credentials_file(user_email)
-  if credentials_deleted:
-      logger.info(f"Successfully deleted credential file for {user_email}")
-  else:
-      logger.info(f"No credential file found or deletion failed for {user_email}")
-  ```
+### 1. Virtual Environment Problem (CRITICAL)
+**Issue**: Copying .venv from builder stage included macOS-specific symlinks
+```
+Old: /app/.venv/bin/python -> /opt/homebrew/opt/python@3.11/bin/python3.11 ❌
+New: /app/.venv/bin/python -> /usr/local/bin/python3 ✅
+```
 
-## Acceptance Criteria - All Met ✅
+**Solution**: Install dependencies directly in the runtime container using `uv sync`
 
-- ✅ Function deletes credentials from S3
-- ✅ Function deletes credentials from local file
-- ✅ Function returns `True` on successful deletion
-- ✅ Function returns `False` if file doesn't exist (local paths)
-- ✅ Function doesn't raise exceptions (returns `False` on error)
-- ✅ Logging shows deletion with path at INFO level
-- ✅ Docstring complete with examples and detailed description
-- ✅ Function can be imported and used in `core/server.py`
-- ✅ `/auth/revoke` endpoint updated to use new function
+### 2. Binary Extension Compatibility (CRITICAL)
+**Issue**: C extensions (pydantic_core, etc.) compiled for macOS ARM architecture
+```
+Old: ModuleNotFoundError: No module named 'pydantic_core._pydantic_core' ❌
+New: import pydantic_core  # Works! ✅
+```
 
-## Testing Notes
+**Solution**: Build dependencies in Linux container with correct platform binaries
 
-### Import Test
-- Function cannot be tested until `boto3` dependency is installed (Phase 3, Task 3.2)
-- Import will fail with `ModuleNotFoundError: No module named 'boto3'`
-- This is expected and does not indicate an issue with the implementation
+### 3. Image Size Bloat
+**Issue**: Multiple factors causing large image size
 
-### Future Testing (After Phase 3 completion)
-1. **Local File Deletion**: Test deleting existing and non-existent local credential files
-2. **S3 File Deletion**: Test deleting credentials from S3 bucket
-3. **Error Handling**: Test with invalid paths, missing permissions, etc.
-4. **Integration**: Test via `/auth/revoke` endpoint in both local and S3 modes
+**Solutions**:
+- Improved .dockerignore (excluded .git, .venv, docs, tests, __pycache__)
+- Used `COPY --chown=app:app` to avoid 231MB duplicate ownership layer
+- Combined RUN commands to reduce layer count
+- Installed dependencies directly in final stage
 
-## Dependencies
-- **Requires**: Phase 1 Task 1.9 (`s3_delete_file` function) - ✅ Complete
-- **Blocks**: None
-- **Related**: Phase 3 Task 3.2 (boto3 installation required for testing)
+---
+
+## Test Results
+
+### Build Test ✅
+```bash
+$ docker build -t google-workspace-mcp:optimized .
+✅ Success - Build completed in ~30 seconds
+```
+
+### Startup Test ✅
+```bash
+$ docker run -d -p 8000:8000 google-workspace-mcp:optimized
+✅ Success - Container running and healthy
+```
+
+### Health Check ✅
+```bash
+$ curl http://localhost:8000/health
+{"status":"healthy","service":"workspace-mcp","version":"1.2.0"}
+✅ Success - Application responds correctly
+```
+
+### Python Environment ✅
+```bash
+$ docker exec container python -c "import pydantic_core"
+✅ Success - All dependencies work
+```
+
+---
+
+## Key Changes Made
+
+### Dockerfile Redesign
+1. **Single-stage build** (instead of broken multi-stage)
+2. **Install uv in runtime stage** for dependency management
+3. **Run uv sync in container** to build platform-specific binaries
+4. **Use COPY --chown** throughout to avoid duplicate layers
+5. **Combine RUN commands** for efficiency
+
+### .dockerignore Improvements
+Added 40+ exclusion patterns:
+- `.venv/`, `.git/` - Don't copy, create fresh in container
+- `docs/`, `agent_notes/`, `plan_cicd/` - Documentation excluded
+- `tests/`, `.pytest_cache/`, `.coverage` - Test files excluded
+- `__pycache__/`, `*.pyc`, `*.pyo` - Python cache excluded
+- IDE files, OS files, development files
+
+### docker-entrypoint.sh Update
+- Changed from `python3` to `python` (uses venv Python)
+- Removed unnecessary PYTHONPATH manipulation
+- Simplified command execution
+
+---
+
+## Image Layer Breakdown
+
+```
+Component                        Size
+─────────────────────────────────────────
+Base (python:3.12-slim)         141MB
+Runtime deps (curl, uv)          25MB
+Python dependencies             202MB
+Application code                460KB
+User + setup                    2.6MB
+Other                            <1MB
+─────────────────────────────────────────
+TOTAL                           426MB
+```
+
+---
+
+## Performance Metrics
+
+| Metric | Value |
+|--------|-------|
+| Build time (no cache) | ~30 seconds |
+| Build time (cached) | ~5-10 seconds |
+| Container startup | <5 seconds |
+| Image size | 426MB |
+| Application code size | 460KB |
+
+---
 
 ## Files Modified
-1. `/Users/rob/Projects/busyb/google_workspace_mcp/auth/google_auth.py`
-   - Added import for `s3_delete_file`
-   - Added `delete_credentials_file()` function (lines 369-438)
 
-2. `/Users/rob/Projects/busyb/google_workspace_mcp/core/server.py`
-   - Updated `/auth/revoke` endpoint to use new function (lines 401-407)
+1. **Dockerfile** - Completely redesigned for optimization
+2. **.dockerignore** - Enhanced with 40+ exclusion patterns
+3. **docker-entrypoint.sh** - Updated Python command
 
-3. `/Users/rob/Projects/busyb/google_workspace_mcp/agent_notes/task_2.5_summary.md`
-   - Created this summary document
+---
 
-## Implementation Quality
-- **Code Style**: Follows existing codebase patterns
-- **Error Handling**: Comprehensive with informative logging
-- **Documentation**: Extensive docstring with examples
-- **Backward Compatibility**: Maintains existing behavior for local files
-- **S3 Integration**: Seamlessly integrates with S3 storage module
-- **Safety**: Non-destructive (returns False on errors, doesn't raise)
+## Production Ready ✅
+
+The Docker image is now:
+- ✅ Functional and tested
+- ✅ Optimized for size (47% smaller)
+- ✅ Secure (non-root user, minimal attack surface)
+- ✅ Fast to build and deploy
+- ✅ Uses correct platform-specific binaries
+
+---
 
 ## Next Steps
-1. Continue with remaining Phase 2 tasks (Tasks 2.1-2.4 already complete based on imports)
-2. Complete Phase 3 (add boto3 dependency and test imports)
-3. Test function after boto3 installation
-4. Update documentation in Phase 4
 
-## Summary
-Task 2.5 is **complete**. The `delete_credentials_file()` function has been successfully implemented with full support for both local and S3 storage, comprehensive error handling, detailed documentation, and integration with the `/auth/revoke` endpoint. The implementation meets all acceptance criteria and follows best practices established in the codebase.
+- **Task 2.6**: Create docker-compose.yml for local development
+- **Task 2.7**: Document deployment procedures
+
+---
+
+**Detailed documentation**: See `agent_notes/task_2.5_optimization_results.md`

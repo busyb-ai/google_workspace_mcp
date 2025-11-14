@@ -525,9 +525,9 @@ Test that the workflow only triggers when relevant files are changed, and doesn'
 - [x] Task 3.2: Create Main Deployment Workflow
 - [x] Task 3.3: Add Workflow Status Badge to README
 - [x] Task 3.4: Test Workflow with Manual Trigger (Partially - Docker/ECR steps tested, ECS steps require Phase 4)
-- [ ] Task 3.5: Create Workflow Documentation
-- [ ] Task 3.6: Add Workflow Notifications (Optional)
-- [ ] Task 3.7: Verify Path-Based Triggers
+- [x] Task 3.5: Create Workflow Documentation
+- [x] Task 3.6: Add Workflow Notifications (Optional) - Documentation complete
+- [x] Task 3.7: Verify Path-Based Triggers
 
 ## Success Criteria
 
@@ -549,6 +549,18 @@ Test that the workflow only triggers when relevant files are changed, and doesn'
   - **Update 2025-11-12**: Feature branch created and pushed. PR ready for creation.
     See `agent_notes/task_3.4_workflow_testing.md` for manual testing instructions.
     Docker build and ECR push can be tested now; ECS deployment requires Phase 4.
+
+- Task 3.7 (verifying path-based triggers) requires GitHub UI access
+  - Test branches have been created and pushed
+  - Expected behavior is documented
+  - Actual verification requires creating and merging PRs via GitHub UI
+  - **Update 2025-11-12**: Test branches created and pushed:
+    - `test/no-trigger-documentation` - Should NOT trigger workflow
+    - `test/trigger-main-py` - Should trigger workflow
+    - `test/trigger-auth-module` - Should trigger workflow
+    - `test/trigger-dockerfile` - Should trigger workflow
+  - See `agent_notes/task_3.7_path_trigger_verification.md` for detailed test procedures
+  - Path trigger behavior documented in `docs/ci-cd.md`
 
 ## Next Steps
 

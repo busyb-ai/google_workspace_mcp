@@ -1,0 +1,78 @@
+{
+  "family": "busyb-google-workspace-mcp",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "arn:aws:iam::758888582357:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::758888582357:role/busyb-google-workspace-mcp-task-role",
+  "containerDefinitions": [
+    {
+      "name": "busyb-google-workspace-mcp",
+      "image": "758888582357.dkr.ecr.us-east-1.amazonaws.com/busyb-google-workspace-mcp:latest",
+      "portMappings": [
+        {
+          "containerPort": 8000,
+          "protocol": "tcp"
+        }
+      ],
+      "essential": true,
+      "environment": [
+        {
+          "name": "PORT",
+          "value": "8000"
+        },
+        {
+          "name": "WORKSPACE_MCP_PORT",
+          "value": "8000"
+        },
+        {
+          "name": "WORKSPACE_MCP_BASE_URI",
+          "value": "http://google-workspace.busyb.local"
+        },
+        {
+          "name": "MCP_ENABLE_OAUTH21",
+          "value": "true"
+        },
+        {
+          "name": "MCP_SINGLE_USER_MODE",
+          "value": "0"
+        },
+        {
+          "name": "OAUTHLIB_INSECURE_TRANSPORT",
+          "value": "0"
+        }
+      ],
+      "secrets": [
+        {
+          "name": "GOOGLE_OAUTH_CLIENT_ID",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:758888582357:secret:busyb/google-oauth-client-id-5AhKRx:GOOGLE_OAUTH_CLIENT_ID::"
+        },
+        {
+          "name": "GOOGLE_OAUTH_CLIENT_SECRET",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:758888582357:secret:busyb/google-oauth-client-secret-mMQs8z:GOOGLE_OAUTH_CLIENT_SECRET::"
+        },
+        {
+          "name": "GOOGLE_MCP_CREDENTIALS_DIR",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:758888582357:secret:busyb/s3-credentials-bucket-Ba31ZM"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/busyb-google-workspace-mcp",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "ecs",
+          "awslogs-create-group": "true"
+        }
+      },
+      "healthCheck": {
+        "command": ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 60
+      }
+    }
+  ]
+}

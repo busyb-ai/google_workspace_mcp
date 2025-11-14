@@ -1027,6 +1027,68 @@ The Google Workspace tools should now be available when interacting with models 
 
 ---
 
+## 🔧 Troubleshooting
+
+### Common Issues
+
+#### Authentication Problems
+
+**Issue**: "No credentials found" or "Authentication failed" errors
+
+**Solutions**:
+- Verify `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET` are set correctly
+- Check that redirect URI matches exactly: `http://localhost:8000/oauth2callback`
+- Ensure required Google APIs are enabled in Google Cloud Console
+- Try deleting `.credentials/` directory and reauthenticating
+
+#### OAuth Callback 404
+
+**Issue**: OAuth callback returns 404 error
+
+**Solutions**:
+- Ensure `OAUTHLIB_INSECURE_TRANSPORT=1` is set for development
+- Verify port 8000 is not in use by another application
+- Check redirect URI in Google Cloud Console matches `http://localhost:8000/oauth2callback`
+- Restart the server and try authentication again
+
+#### Tool Execution Errors
+
+**Issue**: Tools fail with "insufficient permissions" or scope errors
+
+**Solutions**:
+- Delete credentials and reauthenticate to grant new scopes
+- Verify the required Google API is enabled in Google Cloud Console
+- Check that your Google account has access to the resources (calendars, drives, etc.)
+
+#### Docker Container Issues
+
+**Issue**: Container fails to start or exits immediately
+
+**Solutions**:
+- Check environment variables are set correctly in docker-compose.yml or docker run command
+- Verify port 8000 is available
+- Check container logs: `docker logs <container-id>`
+- Ensure Docker has enough resources allocated
+
+#### CI/CD Pipeline Issues
+
+**Issue**: GitHub Actions workflow fails
+
+**Solutions**:
+- Verify all required secrets are configured in GitHub repository settings
+- Check AWS credentials have necessary ECR and ECS permissions
+- Review workflow logs in GitHub Actions tab
+- For detailed troubleshooting, see [CI/CD Documentation](docs/ci-cd.md)
+
+### Getting Help
+
+- **Documentation**: Check the comprehensive docs in the [`docs/`](docs/) directory
+- **Issues**: Report bugs or request features on [GitHub Issues](https://github.com/taylorwilsdon/google_workspace_mcp/issues)
+- **Logs**: Enable debug logging with `export LOG_LEVEL=DEBUG` before starting the server
+- **MCP Inspector**: Use [`@modelcontextprotocol/inspector`](https://github.com/modelcontextprotocol/inspector) to debug MCP communication
+
+---
+
 ## 📄 License
 
 MIT License - see `LICENSE` file for details.
