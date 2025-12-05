@@ -271,15 +271,26 @@ def require_google_service(
             # Note: `args` and `kwargs` are now the arguments for the *wrapper*,
             # which does not include 'service'.
 
-            # Extract user_google_email from the arguments passed to the wrapper
+            # Extract user_google_email and user_id from the arguments passed to the wrapper
             bound_args = wrapper_sig.bind(*args, **kwargs)
             bound_args.apply_defaults()
             user_google_email = bound_args.arguments.get('user_google_email')
+            user_id = bound_args.arguments.get('user_id')  # Optional - can come from query param or argument
 
             if not user_google_email:
                 # This should ideally not be reached if 'user_google_email' is a required parameter
                 # in the function signature, but it's a good safeguard.
                 raise Exception("'user_google_email' parameter is required but was not found.")
+            
+            # Try to get user_id from context if not provided in arguments (query param takes precedence)
+            if not user_id:
+                try:
+                    from core.context import get_user_id
+                    user_id = get_user_id()
+                    if user_id:
+                        logger.debug(f"[{func.__name__}] Got user_id from context: {user_id}")
+                except Exception as e:
+                    logger.debug(f"[{func.__name__}] Could not get user_id from context: {e}")
 
             # Get service configuration from the decorator's arguments
             if service_type not in SERVICE_CONFIGS:
@@ -319,6 +330,12 @@ def require_google_service(
                             # Get the authenticated user email set by AuthInfoMiddleware
                             authenticated_user = ctx.get_state("authenticated_user_email")
                             auth_method = ctx.get_state("authenticated_via")
+
+                            # Get user_id from context state if not already set (query param takes precedence)
+                            if not user_id:
+                                user_id = ctx.get_state("user_id")
+                                if user_id:
+                                    logger.debug(f"[{tool_name}] Got user_id from FastMCP context state: {user_id}")
 
                             # Get session ID for logging
                             if hasattr(ctx, 'session_id'):
@@ -361,6 +378,7 @@ def require_google_service(
                             user_google_email=user_google_email,
                             required_scopes=resolved_scopes,
                             session_id=mcp_session_id,
+                            user_id=user_id,  # Pass user_id for credential file lookup
                         )
 
                     if cache_enabled:

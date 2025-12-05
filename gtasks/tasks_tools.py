@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 @handle_http_errors("list_task_lists", service_type="tasks")
 async def list_task_lists(
     service,
-    user_google_email: str,
+    user_google_email: str, user_id: Optional[str] = None,
     max_results: Optional[int] = None,
     page_token: Optional[str] = None
 ) -> str:
@@ -83,7 +83,8 @@ async def list_task_lists(
 async def get_task_list(
     service,
     user_google_email: str,
-    task_list_id: str
+    task_list_id: str,
+    user_id: Optional[str] = None,
 ) -> str:
     """
     Get details of a specific task list.
@@ -127,7 +128,8 @@ async def get_task_list(
 async def create_task_list(
     service,
     user_google_email: str,
-    title: str
+    title: str,
+    user_id: Optional[str] = None,
 ) -> str:
     """
     Create a new task list.
@@ -176,7 +178,8 @@ async def update_task_list(
     service,
     user_google_email: str,
     task_list_id: str,
-    title: str
+    title: str,
+    user_id: Optional[str] = None,
 ) -> str:
     """
     Update an existing task list.
@@ -225,7 +228,8 @@ async def update_task_list(
 async def delete_task_list(
     service,
     user_google_email: str,
-    task_list_id: str
+    task_list_id: str,
+    user_id: Optional[str] = None,
 ) -> str:
     """
     Delete a task list. Note: This will also delete all tasks in the list.
@@ -264,8 +268,8 @@ async def delete_task_list(
 @handle_http_errors("list_tasks", service_type="tasks")
 async def list_tasks(
     service,
-    user_google_email: str,
-    task_list_id: str,
+    user_google_email: str, task_list_id: str,user_id: Optional[str] = None,
+    
     max_results: Optional[int] = None,
     page_token: Optional[str] = None,
     show_completed: Optional[bool] = None,
@@ -372,7 +376,8 @@ async def get_task(
     service,
     user_google_email: str,
     task_list_id: str,
-    task_id: str
+    task_id: str,
+    user_id: Optional[str] = None,
 ) -> str:
     """
     Get details of a specific task.
@@ -431,10 +436,10 @@ async def get_task(
 @handle_http_errors("create_task", service_type="tasks")
 async def create_task(
     service,
-    user_google_email: str,
-    task_list_id: str,
+    user_google_email: str, task_list_id: str,
     title: str,
     notes: Optional[str] = None,
+    user_id: Optional[str] = None,
     due: Optional[str] = None,
     parent: Optional[str] = None,
     previous: Optional[str] = None
@@ -506,10 +511,10 @@ async def create_task(
 @handle_http_errors("update_task", service_type="tasks")
 async def update_task(
     service,
-    user_google_email: str,
-    task_list_id: str,
+    user_google_email: str, task_list_id: str,
     task_id: str,
     title: Optional[str] = None,
+    user_id: Optional[str] = None,
     notes: Optional[str] = None,
     status: Optional[str] = None,
     due: Optional[str] = None
@@ -590,7 +595,8 @@ async def delete_task(
     service,
     user_google_email: str,
     task_list_id: str,
-    task_id: str
+    task_id: str,
+    user_id: Optional[str] = None,
 ) -> str:
     """
     Delete a task from a task list.
@@ -630,10 +636,10 @@ async def delete_task(
 @handle_http_errors("move_task", service_type="tasks")
 async def move_task(
     service,
-    user_google_email: str,
-    task_list_id: str,
+    user_google_email: str, task_list_id: str,
     task_id: str,
     parent: Optional[str] = None,
+    user_id: Optional[str] = None,
     previous: Optional[str] = None,
     destination_task_list: Optional[str] = None
 ) -> str:
@@ -710,7 +716,8 @@ async def move_task(
 async def clear_completed_tasks(
     service,
     user_google_email: str,
-    task_list_id: str
+    task_list_id: str,
+    user_id: Optional[str] = None,
 ) -> str:
     """
     Clear all completed tasks from a task list. The tasks will be marked as hidden.

@@ -6,6 +6,7 @@ This module provides MCP tools for interacting with Google Docs API and managing
 import logging
 import asyncio
 import io
+from typing import Optional
 
 from googleapiclient.http import MediaIoBaseDownload
 
@@ -22,8 +23,8 @@ logger = logging.getLogger(__name__)
 @require_google_service("drive", "drive_read")
 async def search_docs(
     service,
-    user_google_email: str,
-    query: str,
+    user_google_email: str, query: str,user_id: Optional[str] = None,
+    
     page_size: int = 10,
 ) -> str:
     """
@@ -63,8 +64,8 @@ async def search_docs(
 async def get_doc_content(
     drive_service,
     docs_service,
-    user_google_email: str,
-    document_id: str,
+    user_google_email: str, document_id: str,user_id: Optional[str] = None,
+    
 ) -> str:
     """
     Retrieves content of a Google Doc or a Drive file (like .docx) identified by document_id.
@@ -218,7 +219,7 @@ async def get_doc_content(
 @require_google_service("drive", "drive_read")
 async def list_docs_in_folder(
     service,
-    user_google_email: str,
+    user_google_email: str, user_id: Optional[str] = None,
     folder_id: str = 'root',
     page_size: int = 100
 ) -> str:
@@ -250,8 +251,8 @@ async def list_docs_in_folder(
 @require_google_service("docs", "docs_write")
 async def create_doc(
     service,
-    user_google_email: str,
-    title: str,
+    user_google_email: str, title: str,user_id: Optional[str] = None,
+    
     content: str = '',
 ) -> str:
     """
