@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 @require_google_service("drive", "drive_read")
 async def list_spreadsheets(
     service,
-    user_google_email: str,
+    user_google_email: str, user_id: Optional[str] = None,
     max_results: int = 25,
 ) -> str:
     """
@@ -71,8 +71,8 @@ async def list_spreadsheets(
 @require_google_service("sheets", "sheets_read")
 async def get_spreadsheet_info(
     service,
-    user_google_email: str,
-    spreadsheet_id: str,
+    user_google_email: str, spreadsheet_id: str,user_id: Optional[str] = None,
+    
 ) -> str:
     """
     Gets information about a specific spreadsheet including its sheets.
@@ -121,8 +121,8 @@ async def get_spreadsheet_info(
 @require_google_service("sheets", "sheets_read")
 async def read_sheet_values(
     service,
-    user_google_email: str,
-    spreadsheet_id: str,
+    user_google_email: str, spreadsheet_id: str,user_id: Optional[str] = None,
+    
     range_name: str = "A1:Z1000",
 ) -> str:
     """
@@ -174,6 +174,7 @@ async def modify_sheet_values(
     user_google_email: str,
     spreadsheet_id: str,
     range_name: str,
+    user_id: Optional[str] = None,
     values: Optional[List[List[str]]] = None,
     value_input_option: str = "USER_ENTERED",
     clear_values: bool = False,
@@ -242,8 +243,8 @@ async def modify_sheet_values(
 @require_google_service("sheets", "sheets_write")
 async def create_spreadsheet(
     service,
-    user_google_email: str,
-    title: str,
+    user_google_email: str, title: str,user_id: Optional[str] = None,
+    
     sheet_names: Optional[List[str]] = None,
 ) -> str:
     """
@@ -294,6 +295,7 @@ async def create_sheet(
     user_google_email: str,
     spreadsheet_id: str,
     sheet_name: str,
+    user_id: Optional[str] = None,
 ) -> str:
     """
     Creates a new sheet within an existing spreadsheet.
@@ -344,6 +346,7 @@ async def batch_get_sheet_values(
     user_google_email: str,
     spreadsheet_id: str,
     ranges: List[str],
+    user_id: Optional[str] = None,
     major_dimension: Optional[str] = None,
 ) -> str:
     """
@@ -383,10 +386,10 @@ async def batch_get_sheet_values(
 @require_google_service("sheets", "sheets_write")
 async def append_sheet_values(
     service,
-    user_google_email: str,
-    spreadsheet_id: str,
+    user_google_email: str, spreadsheet_id: str,
     range_name: str,
     values: List[List[Any]],
+    user_id: Optional[str] = None,
     value_input_option: str = "USER_ENTERED",
     insert_data_option: str = "INSERT_ROWS",
     include_values_in_response: bool = False,
@@ -433,10 +436,10 @@ async def append_sheet_values(
 @require_google_service("sheets", "sheets_write")
 async def batch_update_sheet_values(
     service,
-    user_google_email: str,
-    spreadsheet_id: str,
+    user_google_email: str, spreadsheet_id: str,
     data: List[Dict[str, Any]],
     value_input_option: str = "USER_ENTERED",
+    user_id: Optional[str] = None,
 ) -> str:
     """
     Batch update multiple A1 ranges with values.
@@ -464,10 +467,10 @@ async def batch_update_sheet_values(
 @require_google_service("sheets", "sheets_write")
 async def sheets_batch_update_requests(
     service,
-    user_google_email: str,
-    spreadsheet_id: str,
+    user_google_email: str, spreadsheet_id: str,
     requests: List[Dict[str, Any]],
     include_spreadsheet_in_response: bool = False,
+    user_id: Optional[str] = None,
 ) -> str:
     """
     Executes arbitrary Sheets batchUpdate requests for advanced scenarios.
@@ -496,8 +499,7 @@ async def sheets_batch_update_requests(
 @require_google_service("sheets", "sheets_write")
 async def format_cells(
     service,
-    user_google_email: str,
-    spreadsheet_id: str,
+    user_google_email: str, spreadsheet_id: str,
     grid_range: Dict[str, Any],
     cell_format: Dict[str, Any],
     fields: str,
@@ -534,11 +536,11 @@ async def format_cells(
 @require_google_service("sheets", "sheets_write")
 async def set_sheet_properties(
     service,
-    user_google_email: str,
-    spreadsheet_id: str,
+    user_google_email: str, spreadsheet_id: str,
     sheet_id: int,
     title: Optional[str] = None,
     grid_properties: Optional[Dict[str, Any]] = None,
+    user_id: Optional[str] = None,
     tab_color: Optional[Dict[str, float]] = None,
     hidden: Optional[bool] = None,
     index: Optional[int] = None,
@@ -591,8 +593,7 @@ async def set_sheet_properties(
 @require_google_service("sheets", "sheets_write")
 async def add_named_range(
     service,
-    user_google_email: str,
-    spreadsheet_id: str,
+    user_google_email: str, spreadsheet_id: str,
     name: str,
     grid_range: Dict[str, Any],
 ) -> str:
@@ -622,9 +623,9 @@ async def add_named_range(
 @require_google_service("sheets", "sheets_write")
 async def delete_named_range(
     service,
-    user_google_email: str,
-    spreadsheet_id: str,
+    user_google_email: str, spreadsheet_id: str,
     named_range_id: str,
+    user_id: Optional[str] = None
 ) -> str:
     """Deletes a named range by ID."""
     logger.info(f"[delete_named_range] Email='{user_google_email}', Spreadsheet={spreadsheet_id}, NamedRangeId={named_range_id}")
@@ -641,8 +642,7 @@ async def delete_named_range(
 @require_google_service("sheets", "sheets_write")
 async def set_data_validation(
     service,
-    user_google_email: str,
-    spreadsheet_id: str,
+    user_google_email: str, spreadsheet_id: str,
     grid_range: Dict[str, Any],
     rule: Dict[str, Any],
 ) -> str:
@@ -675,8 +675,7 @@ async def set_data_validation(
 @require_google_service("sheets", "sheets_write")
 async def add_conditional_format_rule(
     service,
-    user_google_email: str,
-    spreadsheet_id: str,
+    user_google_email: str, spreadsheet_id: str,
     rule: Dict[str, Any],
     index: Optional[int] = None,
 ) -> str:
@@ -710,10 +709,10 @@ async def add_conditional_format_rule(
 @require_google_service("sheets", "sheets_write")
 async def delete_conditional_format_rule(
     service,
-    user_google_email: str,
-    spreadsheet_id: str,
+    user_google_email: str, spreadsheet_id: str,
     sheet_id: int,
     index: int,
+    user_id: Optional[str] = None,
 ) -> str:
     """Deletes a conditional format rule by index."""
     logger.info(f"[delete_conditional_format_rule] Email='{user_google_email}', Spreadsheet={spreadsheet_id}, SheetId={sheet_id}, Index={index}")
@@ -732,8 +731,7 @@ async def delete_conditional_format_rule(
 @require_google_service("sheets", "sheets_write")
 async def merge_cells(
     service,
-    user_google_email: str,
-    spreadsheet_id: str,
+    user_google_email: str, spreadsheet_id: str,
     grid_range: Dict[str, Any],
     merge_type: str = "MERGE_ALL",
 ) -> str:
@@ -752,8 +750,7 @@ async def merge_cells(
 @require_google_service("sheets", "sheets_write")
 async def unmerge_cells(
     service,
-    user_google_email: str,
-    spreadsheet_id: str,
+    user_google_email: str, spreadsheet_id: str,
     grid_range: Dict[str, Any],
 ) -> str:
     """Unmerges cells in a given GridRange."""
@@ -771,8 +768,7 @@ async def unmerge_cells(
 @require_google_service("sheets", "sheets_write")
 async def sort_range(
     service,
-    user_google_email: str,
-    spreadsheet_id: str,
+    user_google_email: str, spreadsheet_id: str,
     grid_range: Dict[str, Any],
     sort_specs: List[Dict[str, Any]],
 ) -> str:
@@ -796,10 +792,10 @@ async def sort_range(
 @require_google_service("sheets", "sheets_write")
 async def auto_resize_dimensions(
     service,
-    user_google_email: str,
-    spreadsheet_id: str,
+    user_google_email: str, spreadsheet_id: str,
     sheet_id: int,
     dimension: str = "COLUMNS",
+    user_id: Optional[str] = None,
     start_index: int = 0,
     end_index: Optional[int] = None,
 ) -> str:
@@ -831,8 +827,7 @@ async def auto_resize_dimensions(
 @require_google_service("sheets", "sheets_write")
 async def create_spreadsheet_detailed(
     service,
-    user_google_email: str,
-    title: str,
+    user_google_email: str, title: str,
     sheets: Optional[List[Dict[str, Any]]] = None,
     locale: Optional[str] = None,
     time_zone: Optional[str] = None,
@@ -909,10 +904,10 @@ resolve_sheet_comment = _comment_tools['resolve_comment']
 @require_google_service("sheets", "sheets_write")
 async def duplicate_sheet(
     service,
-    user_google_email: str,
-    spreadsheet_id: str,
+    user_google_email: str, spreadsheet_id: str,
     sheet_id: int,
     new_sheet_name: Optional[str] = None,
+    user_id: Optional[str] = None,
     insert_index: Optional[int] = None,
 ) -> str:
     """
@@ -944,9 +939,9 @@ async def duplicate_sheet(
 @require_google_service("sheets", "sheets_write")
 async def delete_sheet(
     service,
-    user_google_email: str,
-    spreadsheet_id: str,
+    user_google_email: str, spreadsheet_id: str,
     sheet_id: int,
+    user_id: Optional[str] = None
 ) -> str:
     """Deletes a sheet by sheetId."""
     logger.info(f"[delete_sheet] Email='{user_google_email}', Spreadsheet={spreadsheet_id}, SheetId={sheet_id}")
@@ -963,10 +958,10 @@ async def delete_sheet(
 @require_google_service("sheets", "sheets_write")
 async def move_sheet(
     service,
-    user_google_email: str,
-    spreadsheet_id: str,
+    user_google_email: str, spreadsheet_id: str,
     sheet_id: int,
     new_index: int,
+    user_id: Optional[str] = None,
 ) -> str:
     """Moves a sheet to a new tab index."""
     logger.info(f"[move_sheet] Email='{user_google_email}', Spreadsheet={spreadsheet_id}, SheetId={sheet_id}, NewIndex={new_index}")
@@ -990,8 +985,7 @@ async def move_sheet(
 @require_google_service("sheets", "sheets_write")
 async def add_protected_range(
     service,
-    user_google_email: str,
-    spreadsheet_id: str,
+    user_google_email: str, spreadsheet_id: str,
     description: str,
     grid_range: Dict[str, Any],
     editors_emails: Optional[List[str]] = None,
@@ -1024,9 +1018,9 @@ async def add_protected_range(
 @require_google_service("sheets", "sheets_write")
 async def delete_protected_range(
     service,
-    user_google_email: str,
-    spreadsheet_id: str,
+    user_google_email: str, spreadsheet_id: str,
     protected_range_id: int,
+    user_id: Optional[str] = None
 ) -> str:
     """Deletes a protected range by id."""
     logger.info(f"[delete_protected_range] Email='{user_google_email}', Spreadsheet={spreadsheet_id}, ProtectedRangeId={protected_range_id}")
@@ -1043,8 +1037,7 @@ async def delete_protected_range(
 @require_google_service("sheets", "sheets_write")
 async def create_filter_view(
     service,
-    user_google_email: str,
-    spreadsheet_id: str,
+    user_google_email: str, spreadsheet_id: str,
     title: str,
     grid_range: Dict[str, Any],
     criteria: Optional[Dict[str, Any]] = None,
@@ -1074,9 +1067,9 @@ async def create_filter_view(
 @require_google_service("sheets", "sheets_write")
 async def delete_filter_view(
     service,
-    user_google_email: str,
-    spreadsheet_id: str,
+    user_google_email: str, spreadsheet_id: str,
     filter_view_id: int,
+    user_id: Optional[str] = None
 ) -> str:
     """Deletes a filter view by id."""
     logger.info(f"[delete_filter_view] Email='{user_google_email}', Spreadsheet={spreadsheet_id}, FilterViewId={filter_view_id}")
@@ -1093,8 +1086,7 @@ async def delete_filter_view(
 @require_google_service("sheets", "sheets_write")
 async def add_chart(
     service,
-    user_google_email: str,
-    spreadsheet_id: str,
+    user_google_email: str, spreadsheet_id: str,
     chart_spec: Dict[str, Any],
     position: Dict[str, Any],
 ) -> str:
@@ -1117,10 +1109,10 @@ async def add_chart(
 @require_google_service("sheets", "sheets_write")
 async def find_replace(
     service,
-    user_google_email: str,
-    spreadsheet_id: str,
+    user_google_email: str, spreadsheet_id: str,
     find: str,
     replacement: str,
+    user_id: Optional[str] = None,
     sheet_id: Optional[int] = None,
     range: Optional[Dict[str, Any]] = None,
     all_sheets: bool = False,
@@ -1160,8 +1152,7 @@ async def find_replace(
 @require_google_service("sheets", "sheets_write")
 async def copy_paste(
     service,
-    user_google_email: str,
-    spreadsheet_id: str,
+    user_google_email: str, spreadsheet_id: str,
     source: Dict[str, Any],
     destination: Dict[str, Any],
     paste_type: str = "PASTE_NORMAL",
@@ -1191,8 +1182,7 @@ async def copy_paste(
 @require_google_service("sheets", "sheets_write")
 async def create_pivot_table(
     service,
-    user_google_email: str,
-    spreadsheet_id: str,
+    user_google_email: str, spreadsheet_id: str,
     source: Dict[str, Any],
     anchor_cell: Dict[str, int],
     rows: Optional[List[Dict[str, Any]]] = None,
@@ -1235,8 +1225,7 @@ async def create_pivot_table(
 @require_google_service("sheets", "sheets_write")
 async def update_borders(
     service,
-    user_google_email: str,
-    spreadsheet_id: str,
+    user_google_email: str, spreadsheet_id: str,
     grid_range: Dict[str, Any],
     top: Optional[Dict[str, Any]] = None,
     bottom: Optional[Dict[str, Any]] = None,
@@ -1277,8 +1266,7 @@ async def update_borders(
 @require_google_service("sheets", "sheets_write")
 async def add_developer_metadata(
     service,
-    user_google_email: str,
-    spreadsheet_id: str,
+    user_google_email: str, spreadsheet_id: str,
     metadata: Dict[str, Any],
 ) -> str:
     """
@@ -1299,8 +1287,7 @@ async def add_developer_metadata(
 @require_google_service("sheets", "sheets_write")
 async def update_developer_metadata_by_id(
     service,
-    user_google_email: str,
-    spreadsheet_id: str,
+    user_google_email: str, spreadsheet_id: str,
     metadata_id: int,
     developer_metadata: Dict[str, Any],
     fields: str,
@@ -1327,9 +1314,9 @@ async def update_developer_metadata_by_id(
 @require_google_service("sheets", "sheets_write")
 async def delete_developer_metadata_by_id(
     service,
-    user_google_email: str,
-    spreadsheet_id: str,
+    user_google_email: str, spreadsheet_id: str,
     metadata_id: int,
+    user_id: Optional[str] = None
 ) -> str:
     """Deletes developer metadata by ID."""
     logger.info(f"[delete_developer_metadata_by_id] Email='{user_google_email}', Spreadsheet={spreadsheet_id}, MetadataId={metadata_id}")
@@ -1349,12 +1336,12 @@ async def delete_developer_metadata_by_id(
 @require_google_service("sheets", "sheets_write")
 async def add_dimension_group(
     service,
-    user_google_email: str,
-    spreadsheet_id: str,
+    user_google_email: str, spreadsheet_id: str,
     sheet_id: int,
     dimension: str,
     start_index: int,
     end_index: int,
+    user_id: Optional[str] = None,
 ) -> str:
     """Adds a dimension group for a row/column span."""
     logger.info(f"[add_dimension_group] Email='{user_google_email}', Spreadsheet={spreadsheet_id}, SheetId={sheet_id}")
@@ -1371,12 +1358,12 @@ async def add_dimension_group(
 @require_google_service("sheets", "sheets_write")
 async def delete_dimension_group(
     service,
-    user_google_email: str,
-    spreadsheet_id: str,
+    user_google_email: str, spreadsheet_id: str,
     sheet_id: int,
     dimension: str,
     start_index: int,
     end_index: int,
+    user_id: Optional[str] = None,
 ) -> str:
     """Deletes a dimension group for a row/column span."""
     logger.info(f"[delete_dimension_group] Email='{user_google_email}', Spreadsheet={spreadsheet_id}, SheetId={sheet_id}")
@@ -1393,13 +1380,13 @@ async def delete_dimension_group(
 @require_google_service("sheets", "sheets_write")
 async def set_dimension_group_collapse(
     service,
-    user_google_email: str,
-    spreadsheet_id: str,
+    user_google_email: str, spreadsheet_id: str,
     sheet_id: int,
     dimension: str,
     start_index: int,
     end_index: int,
     collapsed: bool,
+    user_id: Optional[str] = None,
 ) -> str:
     """
     Collapses or expands a dimension group using updateDimensionGroup.
@@ -1421,8 +1408,7 @@ async def set_dimension_group_collapse(
 @require_google_service("sheets", "sheets_write")
 async def update_conditional_format_rule(
     service,
-    user_google_email: str,
-    spreadsheet_id: str,
+    user_google_email: str, spreadsheet_id: str,
     sheet_id: int,
     index: int,
     rule: Dict[str, Any],
@@ -1441,10 +1427,10 @@ async def update_conditional_format_rule(
 @require_google_service("sheets", "sheets_write")
 async def import_csv_to_sheet(
     service,
-    user_google_email: str,
-    spreadsheet_id: str,
+    user_google_email: str, spreadsheet_id: str,
     sheet_title: str,
     csv_text: str,
+    user_id: Optional[str] = None,
     clear_before: bool = True,
     delimiter: str = ",",
 ) -> str:
@@ -1486,12 +1472,12 @@ async def import_csv_to_sheet(
 @require_google_service("sheets", "sheets_write")
 async def insert_dimension(
     service,
-    user_google_email: str,
-    spreadsheet_id: str,
+    user_google_email: str, spreadsheet_id: str,
     sheet_id: int,
     dimension: str,
     start_index: int,
     end_index: int,
+    user_id: Optional[str] = None,
     inherit_from_before: bool = False,
 ) -> str:
     """Inserts rows/columns in a given index span."""
@@ -1513,12 +1499,12 @@ async def insert_dimension(
 @require_google_service("sheets", "sheets_write")
 async def delete_dimension(
     service,
-    user_google_email: str,
-    spreadsheet_id: str,
+    user_google_email: str, spreadsheet_id: str,
     sheet_id: int,
     dimension: str,
     start_index: int,
     end_index: int,
+    user_id: Optional[str] = None,
 ) -> str:
     """Deletes rows/columns in a given index span."""
     logger.info(f"[delete_dimension] Email='{user_google_email}', Spreadsheet={spreadsheet_id}, SheetId={sheet_id}")
@@ -1538,13 +1524,13 @@ async def delete_dimension(
 @require_google_service("sheets", "sheets_write")
 async def move_dimension(
     service,
-    user_google_email: str,
-    spreadsheet_id: str,
+    user_google_email: str, spreadsheet_id: str,
     sheet_id: int,
     dimension: str,
     start_index: int,
     end_index: int,
     destination_index: int,
+    user_id: Optional[str] = None,
 ) -> str:
     """Moves a row/column span to a new index."""
     logger.info(f"[move_dimension] Email='{user_google_email}', Spreadsheet={spreadsheet_id}, SheetId={sheet_id}")
@@ -1565,8 +1551,7 @@ async def move_dimension(
 @require_google_service("sheets", "sheets_write")
 async def set_basic_filter(
     service,
-    user_google_email: str,
-    spreadsheet_id: str,
+    user_google_email: str, spreadsheet_id: str,
     filter_spec: Dict[str, Any],
 ) -> str:
     """Sets a basic filter on a sheet/range (SetBasicFilter)."""
@@ -1583,9 +1568,9 @@ async def set_basic_filter(
 @require_google_service("sheets", "sheets_write")
 async def clear_basic_filter(
     service,
-    user_google_email: str,
-    spreadsheet_id: str,
+    user_google_email: str, spreadsheet_id: str,
     sheet_id: int,
+    user_id: Optional[str] = None
 ) -> str:
     """Clears the basic filter from a sheet (ClearBasicFilter)."""
     logger.info(f"[clear_basic_filter] Email='{user_google_email}', Spreadsheet={spreadsheet_id}, SheetId={sheet_id}")
@@ -1601,8 +1586,7 @@ async def clear_basic_filter(
 @require_google_service("sheets", "sheets_write")
 async def add_banding(
     service,
-    user_google_email: str,
-    spreadsheet_id: str,
+    user_google_email: str, spreadsheet_id: str,
     banded_range: Dict[str, Any],
 ) -> str:
     """Adds a banded range (alternating row/column colors)."""
@@ -1620,8 +1604,7 @@ async def add_banding(
 @require_google_service("sheets", "sheets_write")
 async def update_banding(
     service,
-    user_google_email: str,
-    spreadsheet_id: str,
+    user_google_email: str, spreadsheet_id: str,
     banded_range: Dict[str, Any],
     fields: str,
 ) -> str:
@@ -1639,9 +1622,9 @@ async def update_banding(
 @require_google_service("sheets", "sheets_write")
 async def delete_banding(
     service,
-    user_google_email: str,
-    spreadsheet_id: str,
+    user_google_email: str, spreadsheet_id: str,
     banded_range_id: int,
+    user_id: Optional[str] = None
 ) -> str:
     """Deletes a banded range by id."""
     logger.info(f"[delete_banding] Email='{user_google_email}', Spreadsheet={spreadsheet_id}, BandedRangeId={banded_range_id}")
@@ -1657,8 +1640,7 @@ async def delete_banding(
 @require_google_service("sheets", "sheets_write")
 async def update_named_range(
     service,
-    user_google_email: str,
-    spreadsheet_id: str,
+    user_google_email: str, spreadsheet_id: str,
     named_range: Dict[str, Any],
     fields: str,
 ) -> str:
@@ -1676,8 +1658,7 @@ async def update_named_range(
 @require_google_service("sheets", "sheets_write")
 async def update_protected_range(
     service,
-    user_google_email: str,
-    spreadsheet_id: str,
+    user_google_email: str, spreadsheet_id: str,
     protected_range: Dict[str, Any],
     fields: str,
 ) -> str:
@@ -1695,8 +1676,7 @@ async def update_protected_range(
 @require_google_service("sheets", "sheets_write")
 async def update_filter_view(
     service,
-    user_google_email: str,
-    spreadsheet_id: str,
+    user_google_email: str, spreadsheet_id: str,
     filter_view: Dict[str, Any],
     fields: str,
 ) -> str:
@@ -1714,8 +1694,7 @@ async def update_filter_view(
 @require_google_service("sheets", "sheets_write")
 async def update_chart_spec(
     service,
-    user_google_email: str,
-    spreadsheet_id: str,
+    user_google_email: str, spreadsheet_id: str,
     chart_id: int,
     spec: Dict[str, Any],
 ) -> str:
@@ -1733,9 +1712,9 @@ async def update_chart_spec(
 @require_google_service("sheets", "sheets_write")
 async def delete_embedded_object(
     service,
-    user_google_email: str,
-    spreadsheet_id: str,
+    user_google_email: str, spreadsheet_id: str,
     object_id: int,
+    user_id: Optional[str] = None
 ) -> str:
     """Deletes an embedded object (chart/slicer/etc.) by object id."""
     logger.info(f"[delete_embedded_object] Email='{user_google_email}', Spreadsheet={spreadsheet_id}, ObjectId={object_id}")
@@ -1751,8 +1730,7 @@ async def delete_embedded_object(
 @require_google_service("sheets", "sheets_write")
 async def set_spreadsheet_properties(
     service,
-    user_google_email: str,
-    spreadsheet_id: str,
+    user_google_email: str, spreadsheet_id: str,
     properties: Dict[str, Any],
     fields: str,
 ) -> str:
@@ -1770,8 +1748,7 @@ async def set_spreadsheet_properties(
 @require_google_service("sheets", "sheets_read")
 async def batch_get_values_by_data_filter(
     service,
-    user_google_email: str,
-    spreadsheet_id: str,
+    user_google_email: str, spreadsheet_id: str,
     data_filters: List[Dict[str, Any]],
     major_dimension: Optional[str] = None,
 ) -> str:
@@ -1792,8 +1769,7 @@ async def batch_get_values_by_data_filter(
 @require_google_service("sheets", "sheets_write")
 async def batch_update_values_by_data_filter(
     service,
-    user_google_email: str,
-    spreadsheet_id: str,
+    user_google_email: str, spreadsheet_id: str,
     data: List[Dict[str, Any]],
     value_input_option: str = "USER_ENTERED",
 ) -> str:

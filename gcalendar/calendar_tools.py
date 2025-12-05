@@ -99,7 +99,7 @@ def _correct_time_format_for_api(
 @server.tool()
 @handle_http_errors("list_calendars", is_read_only=True, service_type="calendar")
 @require_google_service("calendar", "calendar_read")
-async def list_calendars(service, user_google_email: str) -> str:
+async def list_calendars(service, user_google_email: str, user_id: Optional[str] = None) -> str:
     """
     Retrieves a list of calendars accessible to the authenticated user.
 
@@ -135,7 +135,7 @@ async def list_calendars(service, user_google_email: str) -> str:
 @require_google_service("calendar", "calendar_read")
 async def get_events(
     service,
-    user_google_email: str,
+    user_google_email: str, user_id: Optional[str] = None,
     calendar_id: str = "primary",
     time_min: Optional[str] = None,
     time_max: Optional[str] = None,
@@ -236,6 +236,7 @@ async def create_event(
     summary: str,
     start_time: str,
     end_time: str,
+    user_id: Optional[str] = None,
     calendar_id: str = "primary",
     description: Optional[str] = None,
     location: Optional[str] = None,
@@ -390,8 +391,8 @@ async def create_event(
 @require_google_service("calendar", "calendar_events")
 async def modify_event(
     service,
-    user_google_email: str,
-    event_id: str,
+    user_google_email: str, event_id: str,user_id: Optional[str] = None,
+    
     calendar_id: str = "primary",
     summary: Optional[str] = None,
     start_time: Optional[str] = None,
@@ -556,7 +557,7 @@ async def modify_event(
 @server.tool()
 @handle_http_errors("delete_event", service_type="calendar")
 @require_google_service("calendar", "calendar_events")
-async def delete_event(service, user_google_email: str, event_id: str, calendar_id: str = "primary") -> str:
+async def delete_event(service, user_google_email: str, event_id: str,user_id: Optional[str] = None,  calendar_id: str = "primary") -> str:
     """
     Deletes an existing event.
 
@@ -612,8 +613,8 @@ async def delete_event(service, user_google_email: str, event_id: str, calendar_
 @require_google_service("calendar", "calendar_read")
 async def get_event(
     service,
-    user_google_email: str,
-    event_id: str,
+    user_google_email: str, event_id: str,user_id: Optional[str] = None,
+    
     calendar_id: str = "primary"
 ) -> str:
     """

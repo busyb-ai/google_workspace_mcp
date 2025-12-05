@@ -92,7 +92,12 @@ async def handle_oauth_authorize(request: Request):
     
     # Set redirect_uri to our callback endpoint if not provided
     if "redirect_uri" not in params:
-        params["redirect_uri"] = f"{WORKSPACE_MCP_BASE_URI}:{WORKSPACE_MCP_PORT}/oauth2callback"
+        redirect_uri = f"{WORKSPACE_MCP_BASE_URI}:{WORKSPACE_MCP_PORT}/oauth2callback"
+        params["redirect_uri"] = redirect_uri
+        logger.info(f"Constructed redirect_uri from config: {redirect_uri}")
+        logger.info(f"Config values - WORKSPACE_MCP_BASE_URI: {WORKSPACE_MCP_BASE_URI}, WORKSPACE_MCP_PORT: {WORKSPACE_MCP_PORT}")
+    else:
+        logger.info(f"Using provided redirect_uri: {params['redirect_uri']}")
 
     # Merge client scopes with scopes for enabled tools only
     client_scopes = params.get("scope", "").split() if params.get("scope") else []
@@ -104,6 +109,11 @@ async def handle_oauth_authorize(request: Request):
 
     # Build Google authorization URL
     google_auth_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urlencode(params)
+    
+    # Log the redirect_uri being sent to Google for debugging
+    redirect_uri_being_sent = params.get("redirect_uri", "NOT SET")
+    logger.info(f"OAuth authorization URL being sent to Google with redirect_uri: {redirect_uri_being_sent}")
+    logger.debug(f"Full OAuth URL (first 500 chars): {google_auth_url[:500]}")
 
     # Return redirect
     return RedirectResponse(
@@ -132,8 +142,22 @@ async def handle_proxy_token_exchange(request: Request):
         content_type = request.headers.get("content-type", "application/x-www-form-urlencoded")
         
         # Parse form data to add missing client credentials
+        user_id = None
         if content_type and "application/x-www-form-urlencoded" in content_type:
             form_data = parse_qs(body.decode('utf-8'))
+            
+            # Extract user_id from state parameter if present
+            if 'state' in form_data and form_data['state']:
+                try:
+                    import base64
+                    import json
+                    state_value = form_data['state'][0]
+                    state_data = json.loads(base64.urlsafe_b64decode(state_value).decode())
+                    user_id = state_data.get("user_id")
+                    if user_id:
+                        logger.info(f"Extracted user_id from state: {user_id}")
+                except Exception as e:
+                    logger.debug(f"Could not extract user_id from state: {e}")
             
             # Check if client_id is missing (public client)
             if 'client_id' not in form_data or not form_data['client_id'][0]:
@@ -224,8 +248,10 @@ async def handle_proxy_token_exchange(request: Request):
                                         )
 
                                         # Save credentials to file for legacy auth
-                                        save_credentials_to_file(user_email, user_email, credentials)
-                                        logger.info(f"Saved Google credentials for {user_email}")
+                                        # Use user_id if available from state, otherwise use user_email
+                                        credential_identifier = user_id if user_id else user_email
+                                        save_credentials_to_file(credential_identifier, user_email, credentials)
+                                        logger.info(f"Saved Google credentials for {user_email} (identifier: {credential_identifier})")
                                 except jwt.ExpiredSignatureError:
                                     logger.error("ID token has expired - cannot extract user email")
                                 except jwt.InvalidTokenError as e:

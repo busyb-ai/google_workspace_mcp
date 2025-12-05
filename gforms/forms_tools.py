@@ -21,8 +21,8 @@ logger = logging.getLogger(__name__)
 @require_google_service("forms", "forms")
 async def create_form(
     service,
-    user_google_email: str,
-    title: str,
+    user_google_email: str, title: str,user_id: Optional[str] = None,
+    
     description: Optional[str] = None,
     document_title: Optional[str] = None
 ) -> str:
@@ -71,7 +71,8 @@ async def create_form(
 async def get_form(
     service,
     user_google_email: str,
-    form_id: str
+    form_id: str,
+    user_id: Optional[str] = None,
 ) -> str:
     """
     Get a form.
@@ -126,8 +127,8 @@ async def get_form(
 @require_google_service("forms", "forms")
 async def set_publish_settings(
     service,
-    user_google_email: str,
-    form_id: str,
+    user_google_email: str, form_id: str,user_id: Optional[str] = None,
+    
     publish_as_template: bool = False,
     require_authentication: bool = False
 ) -> str:
@@ -166,7 +167,8 @@ async def get_form_response(
     service,
     user_google_email: str,
     form_id: str,
-    response_id: str
+    response_id: str,
+    user_id: Optional[str] = None,
 ) -> str:
     """
     Get one response from the form.
@@ -218,8 +220,8 @@ async def get_form_response(
 @require_google_service("forms", "forms")
 async def list_form_responses(
     service,
-    user_google_email: str,
-    form_id: str,
+    user_google_email: str, form_id: str,user_id: Optional[str] = None,
+    
     page_size: int = 10,
     page_token: Optional[str] = None
 ) -> str:

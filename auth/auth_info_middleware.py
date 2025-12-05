@@ -29,6 +29,40 @@ class AuthInfoMiddleware(Middleware):
             logger.warning("No fastmcp_context available")
             return
 
+        # Extract user_id from query parameters early in the pipeline
+        user_id = None
+        try:
+            # Try to get user_id from request state (set by MCPSessionMiddleware)
+            if hasattr(context, 'request') and hasattr(context.request, 'state'):
+                if hasattr(context.request.state, 'user_id'):
+                    user_id = context.request.state.user_id
+                    logger.debug(f"Got user_id from request.state: {user_id}")
+            
+            # Fallback: Try to get from query parameters directly
+            if not user_id:
+                if hasattr(context, 'request') and hasattr(context.request, 'query_params'):
+                    user_id = context.request.query_params.get('user_id')
+                elif hasattr(context, 'request') and hasattr(context.request, 'url'):
+                    # Try to parse query params from URL
+                    from urllib.parse import urlparse, parse_qs
+                    parsed_url = urlparse(str(context.request.url))
+                    query_params = parse_qs(parsed_url.query)
+                    if 'user_id' in query_params:
+                        user_id = query_params['user_id'][0]
+            
+            # Also try to get from FastMCP context state (might be set elsewhere)
+            if not user_id:
+                user_id = context.fastmcp_context.get_state("user_id")
+            
+            # Store user_id in context state and context variable
+            if user_id:
+                context.fastmcp_context.set_state("user_id", user_id)
+                from core.context import set_user_id
+                set_user_id(user_id)
+                logger.debug(f"Extracted and stored user_id: {user_id}")
+        except Exception as e:
+            logger.debug(f"Could not extract user_id from query parameters: {e}")
+
         # Return early if authentication state is already set
         if context.fastmcp_context.get_state("authenticated_user_email"):
             logger.info("Authentication state already set.")

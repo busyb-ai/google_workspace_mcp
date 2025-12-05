@@ -12,6 +12,11 @@ _fastmcp_session_id = contextvars.ContextVar(
     "fastmcp_session_id", default=None
 )
 
+# Context variable to hold user_id for the life of a single request.
+_user_id = contextvars.ContextVar(
+    "user_id", default=None
+)
+
 def get_injected_oauth_credentials():
     """
     Retrieve injected OAuth credentials for the current request context.
@@ -39,3 +44,17 @@ def set_fastmcp_session_id(session_id: Optional[str]):
     This is called when a FastMCP request starts.
     """
     _fastmcp_session_id.set(session_id)
+
+def get_user_id() -> Optional[str]:
+    """
+    Retrieve the user_id for the current request context.
+    This is called by authentication layer to get the user_id for credential file lookup.
+    """
+    return _user_id.get()
+
+def set_user_id(user_id: Optional[str]):
+    """
+    Set or clear the user_id for the current request context.
+    This is called when a request starts and user_id is extracted from query parameters.
+    """
+    _user_id.set(user_id)

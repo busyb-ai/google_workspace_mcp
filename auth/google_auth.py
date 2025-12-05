@@ -795,25 +795,38 @@ def get_credentials(
             )
 
             # Save refreshed credentials
-            if user_google_email:  # Always save to file if email is known
-                save_credentials_to_file(
-                    user_google_email, user_google_email, credentials, credentials_base_dir
-                )
+            # Use user_id if available for file identification, otherwise fallback to user_google_email
+            credential_identifier = user_id if user_id else user_google_email
+            if credential_identifier and user_google_email:  # Need both identifier and email
+                # Get user_email from credentials if not already available
+                if not user_google_email and credentials.id_token:
+                    try:
+                        decoded_token = jwt.decode(
+                            credentials.id_token, options={"verify_signature": False}
+                        )
+                        user_google_email = decoded_token.get("email")
+                    except Exception:
+                        pass
                 
-                # Also update OAuth21SessionStore
-                store = get_oauth21_session_store()
-                store.store_session(
-                    user_email=user_google_email,
-                    access_token=credentials.token,
-                    refresh_token=credentials.refresh_token,
-                    token_uri=credentials.token_uri,
-                    client_id=credentials.client_id,
-                    client_secret=credentials.client_secret,
-                    scopes=credentials.scopes,
-                    expiry=credentials.expiry,
-                    mcp_session_id=session_id,
-                    issuer="https://accounts.google.com"  # Add issuer for Google tokens
-                )
+                if user_google_email:
+                    save_credentials_to_file(
+                        credential_identifier, user_google_email, credentials, credentials_base_dir
+                    )
+                    
+                    # Also update OAuth21SessionStore
+                    store = get_oauth21_session_store()
+                    store.store_session(
+                        user_email=user_google_email,
+                        access_token=credentials.token,
+                        refresh_token=credentials.refresh_token,
+                        token_uri=credentials.token_uri,
+                        client_id=credentials.client_id,
+                        client_secret=credentials.client_secret,
+                        scopes=credentials.scopes,
+                        expiry=credentials.expiry,
+                        mcp_session_id=session_id,
+                        issuer="https://accounts.google.com"  # Add issuer for Google tokens
+                    )
                 
             if session_id:  # Update session cache if it was the source or is active
                 save_credentials_to_session(session_id, credentials)
@@ -822,6 +835,20 @@ def get_credentials(
             logger.warning(
                 f"[get_credentials] RefreshError - token expired/revoked: {e}. User: '{user_google_email}', Session: '{session_id}'"
             )
+            # Delete invalid credentials to prevent retry with bad token
+            # This ensures the database/API reading integration status won't find the file
+            # and will know the user needs to reauthenticate
+            # Use user_id if available for deletion, otherwise fallback to user_google_email
+            credential_identifier = user_id if user_id else user_google_email
+            if credential_identifier:
+                try:
+                    deleted = delete_credentials_file(credential_identifier, credentials_base_dir)
+                    if deleted:
+                        logger.info(f"Deleted invalid credentials for {credential_identifier} after refresh failure")
+                    else:
+                        logger.debug(f"No credential file found to delete for {credential_identifier} (may have been already deleted)")
+                except Exception as delete_error:
+                    logger.error(f"Failed to delete credentials for {credential_identifier} after refresh failure: {delete_error}", exc_info=True)
             # For RefreshError, we should return None to trigger reauthentication
             return None
         except Exception as e:
@@ -876,6 +903,7 @@ async def get_authenticated_google_service(
     user_google_email: str,  # Required - no more Optional
     required_scopes: List[str],
     session_id: Optional[str] = None,  # Session context for logging
+    user_id: Optional[str] = None,  # Optional user_id for credential file lookup
 ) -> tuple[Any, str]:
     """
     Centralized Google service authentication for all MCP tools.
@@ -887,6 +915,8 @@ async def get_authenticated_google_service(
         tool_name: The name of the calling tool (for logging/debugging)
         user_google_email: The user's Google email address (required)
         required_scopes: List of required OAuth scopes
+        session_id: Optional MCP session ID
+        user_id: Optional user ID for credential file lookup (preferred over email)
 
     Returns:
         tuple[service, user_email] on success
@@ -894,6 +924,27 @@ async def get_authenticated_google_service(
     Raises:
         GoogleAuthenticationError: When authentication is required or fails
     """
+
+    # Try to get user_id from context if not provided
+    if not user_id:
+        try:
+            from core.context import get_user_id
+            user_id = get_user_id()
+            if user_id:
+                logger.debug(f"[{tool_name}] Got user_id from context: {user_id}")
+        except Exception as e:
+            logger.debug(f"[{tool_name}] Could not get user_id from context: {e}")
+        
+        # Also try FastMCP context state
+        if not user_id and get_fastmcp_context:
+            try:
+                fastmcp_ctx = get_fastmcp_context()
+                if fastmcp_ctx:
+                    user_id = fastmcp_ctx.get_state("user_id") if hasattr(fastmcp_ctx, 'get_state') else None
+                    if user_id:
+                        logger.debug(f"[{tool_name}] Got user_id from FastMCP context: {user_id}")
+            except Exception as e:
+                logger.debug(f"[{tool_name}] Could not get user_id from FastMCP context: {e}")
 
     # Try to get FastMCP session ID if not provided
     if not session_id:
@@ -939,6 +990,7 @@ async def get_authenticated_google_service(
         required_scopes=required_scopes,
         client_secrets_path=CONFIG_CLIENT_SECRETS_PATH,
         session_id=session_id,  # Pass through session context
+        user_id=user_id,  # Pass user_id for credential file lookup
     )
 
     if not credentials or not credentials.valid:

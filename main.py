@@ -3,17 +3,20 @@ import logging
 import os
 import sys
 from importlib import metadata
+
+# Load environment variables from .env file FIRST, before any other imports
+# This prevents accidentally loading a .env file from a different directory
+# and ensures config modules read the correct values
 from dotenv import load_dotenv
+dotenv_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env')
+load_dotenv(dotenv_path=dotenv_path)
+
+# Now import modules that depend on environment variables
 from core.server import server, set_transport_mode, configure_server_for_http
 
 # Suppress googleapiclient discovery cache warning
 logging.getLogger('googleapiclient.discovery_cache').setLevel(logging.ERROR)
 from core.utils import check_credentials_directory_permissions
-
-# Load environment variables from .env file, specifying an explicit path
-# This prevents accidentally loading a .env file from a different directory
-dotenv_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env')
-load_dotenv(dotenv_path=dotenv_path)
 
 logging.basicConfig(
     level=logging.INFO,

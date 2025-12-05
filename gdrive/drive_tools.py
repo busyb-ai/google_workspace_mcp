@@ -78,8 +78,8 @@ def _build_drive_list_params(
 @require_google_service("drive", "drive_read")
 async def search_drive_files(
     service,
-    user_google_email: str,
-    query: str,
+    user_google_email: str, query: str,user_id: Optional[str] = None,
+    
     page_size: int = 10,
     drive_id: Optional[str] = None,
     include_items_from_all_drives: bool = True,
@@ -145,8 +145,8 @@ async def search_drive_files(
 @require_google_service("drive", "drive_read")
 async def get_drive_file_content(
     service,
-    user_google_email: str,
-    file_id: str,
+    user_google_email: str, file_id: str,user_id: Optional[str] = None,
+    
 ) -> str:
     """
     Retrieves the content of a specific Google Drive file by ID, supporting files in shared drives.
@@ -235,7 +235,7 @@ async def get_drive_file_content(
 @require_google_service("drive", "drive_read")
 async def list_drive_items(
     service,
-    user_google_email: str,
+    user_google_email: str, user_id: Optional[str] = None,
     folder_id: str = 'root',
     page_size: int = 100,
     drive_id: Optional[str] = None,
@@ -291,8 +291,8 @@ async def list_drive_items(
 @require_google_service("drive", "drive_file")
 async def create_drive_file(
     service,
-    user_google_email: str,
-    file_name: str,
+    user_google_email: str, file_name: str,user_id: Optional[str] = None,
+    
     content: Optional[str] = None,  # Now explicitly Optional
     folder_id: str = 'root',
     mime_type: str = 'text/plain',

@@ -40,6 +40,14 @@ class MCPSessionMiddleware(BaseHTTPMiddleware):
         session_context = None
         
         try:
+            # Extract user_id from query parameters early in the pipeline
+            user_id = request.query_params.get('user_id')
+            if user_id:
+                # Store user_id in request state for later access by FastMCP middleware
+                if not hasattr(request.state, 'user_id'):
+                    request.state.user_id = user_id
+                logger.debug(f"Extracted user_id from query parameters: {user_id}")
+            
             # Extract session information
             headers = dict(request.headers)
             session_id = extract_session_from_headers(headers)
