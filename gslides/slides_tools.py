@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 @require_google_service("slides", "slides")
 async def create_presentation(
     service,
-    user_google_email: str,
+    user_google_email: str, user_id: Optional[str] = None,
     title: str = "Untitled Presentation"
 ) -> str:
     """
@@ -64,7 +64,8 @@ async def create_presentation(
 async def get_presentation(
     service,
     user_google_email: str,
-    presentation_id: str
+    presentation_id: str,
+    user_id: Optional[str] = None,
 ) -> str:
     """
     Get details about a Google Slides presentation.
@@ -113,7 +114,8 @@ async def batch_update_presentation(
     service,
     user_google_email: str,
     presentation_id: str,
-    requests: List[Dict[str, Any]]
+    requests: List[Dict[str, Any]],
+    user_id: Optional[str] = None,
 ) -> str:
     """
     Apply batch updates to a Google Slides presentation.
@@ -170,7 +172,8 @@ async def get_page(
     service,
     user_google_email: str,
     presentation_id: str,
-    page_object_id: str
+    page_object_id: str,
+    user_id: Optional[str] = None,
 ) -> str:
     """
     Get details about a specific page (slide) in a presentation.
@@ -230,10 +233,10 @@ Page Elements:
 @require_google_service("slides", "slides_read")
 async def get_page_thumbnail(
     service,
-    user_google_email: str,
-    presentation_id: str,
+    user_google_email: str, presentation_id: str,
     page_object_id: str,
-    thumbnail_size: str = "MEDIUM"
+    thumbnail_size: str = "MEDIUM",
+    user_id: Optional[str] = None
 ) -> str:
     """
     Generate a thumbnail URL for a specific page (slide) in a presentation.
@@ -277,8 +280,8 @@ You can view or download the thumbnail using the provided URL."""
 @require_google_service("slides", "slides")
 async def create_slide(
     service,
-    user_google_email: str,
-    presentation_id: str,
+    user_google_email: str, presentation_id: str,user_id: Optional[str] = None,
+    
     predefined_layout: Optional[str] = "TITLE_AND_BODY",
     insertion_index: Optional[int] = None,
     object_id: Optional[str] = None,
@@ -312,10 +315,10 @@ async def create_slide(
 @require_google_service("slides", "slides")
 async def duplicate_object(
     service,
-    user_google_email: str,
-    presentation_id: str,
+    user_google_email: str, presentation_id: str,
     object_id: str,
     object_ids: Optional[Dict[str, str]] = None,
+    user_id: Optional[str] = None,
 ) -> str:
     """Duplicate a slide or page element. Optionally provide objectIds mapping."""
     logger.info(f"[duplicate_object] Email='{user_google_email}', Presentation={presentation_id}, Object={object_id}")
@@ -337,9 +340,9 @@ async def duplicate_object(
 @require_google_service("slides", "slides")
 async def delete_object(
     service,
-    user_google_email: str,
-    presentation_id: str,
+    user_google_email: str, presentation_id: str,
     object_id: str,
+    user_id: Optional[str] = None
 ) -> str:
     """Delete a slide or page element by object id."""
     logger.info(f"[delete_object] Email='{user_google_email}', Presentation={presentation_id}, Object={object_id}")
@@ -355,10 +358,10 @@ async def delete_object(
 @require_google_service("slides", "slides")
 async def move_slides(
     service,
-    user_google_email: str,
-    presentation_id: str,
+    user_google_email: str, presentation_id: str,
     slide_object_ids: List[str],
     insertion_index: int,
+    user_id: Optional[str] = None,
 ) -> str:
     """Reorder slides by moving the given slide ids to the insertion index."""
     logger.info(f"[move_slides] Email='{user_google_email}', Presentation={presentation_id}, Count={len(slide_object_ids)}")
@@ -379,10 +382,10 @@ async def move_slides(
 @require_google_service("slides", "slides")
 async def create_shape(
     service,
-    user_google_email: str,
-    presentation_id: str,
+    user_google_email: str, presentation_id: str,
     shape_type: str,
     element_properties: Dict[str, Any],
+    user_id: Optional[str] = None,
     object_id: Optional[str] = None,
 ) -> str:
     """Create a shape on a slide. element_properties must include pageObjectId and transform/size."""
@@ -408,10 +411,10 @@ async def create_shape(
 @require_google_service("slides", "slides")
 async def insert_text(
     service,
-    user_google_email: str,
-    presentation_id: str,
+    user_google_email: str, presentation_id: str,
     object_id: str,
     text: str,
+    user_id: Optional[str] = None,
     insertion_index: int = 0,
 ) -> str:
     """Insert text into a shape or table cell-containing object at a given index."""
@@ -428,8 +431,7 @@ async def insert_text(
 @require_google_service("slides", "slides")
 async def replace_all_text(
     service,
-    user_google_email: str,
-    presentation_id: str,
+    user_google_email: str, presentation_id: str,
     contains_text: Dict[str, Any],
     replace_text: str,
     page_object_ids: Optional[List[str]] = None,
@@ -459,8 +461,7 @@ async def replace_all_text(
 @require_google_service("slides", "slides")
 async def update_text_style(
     service,
-    user_google_email: str,
-    presentation_id: str,
+    user_google_email: str, presentation_id: str,
     object_id: str,
     text_range: Dict[str, Any],
     style: Dict[str, Any],
@@ -487,8 +488,7 @@ async def update_text_style(
 @require_google_service("slides", "slides")
 async def update_paragraph_style(
     service,
-    user_google_email: str,
-    presentation_id: str,
+    user_google_email: str, presentation_id: str,
     object_id: str,
     text_range: Dict[str, Any],
     style: Dict[str, Any],
@@ -515,8 +515,7 @@ async def update_paragraph_style(
 @require_google_service("slides", "slides")
 async def create_image(
     service,
-    user_google_email: str,
-    presentation_id: str,
+    user_google_email: str, presentation_id: str,
     image_url: str,
     element_properties: Dict[str, Any],
     object_id: Optional[str] = None,
@@ -544,10 +543,10 @@ async def create_image(
 @require_google_service("slides", "slides")
 async def replace_image(
     service,
-    user_google_email: str,
-    presentation_id: str,
+    user_google_email: str, presentation_id: str,
     object_id: str,
     image_url: str,
+    user_id: Optional[str] = None,
 ) -> str:
     """Replace the image content of an existing image object with a new URL."""
     logger.info(f"[replace_image] Email='{user_google_email}', Presentation={presentation_id}, Object={object_id}")
@@ -563,11 +562,11 @@ async def replace_image(
 @require_google_service("slides", "slides")
 async def create_table(
     service,
-    user_google_email: str,
-    presentation_id: str,
+    user_google_email: str, presentation_id: str,
     rows: int,
     columns: int,
     element_properties: Dict[str, Any],
+    user_id: Optional[str] = None,
     object_id: Optional[str] = None,
 ) -> str:
     """Create a table on a slide with specified rows/columns and placement."""
@@ -594,8 +593,7 @@ async def create_table(
 @require_google_service("slides", "slides")
 async def update_table_cell_properties(
     service,
-    user_google_email: str,
-    presentation_id: str,
+    user_google_email: str, presentation_id: str,
     object_id: str,
     table_range: Dict[str, Any],
     table_cell_properties: Dict[str, Any],
@@ -622,8 +620,7 @@ async def update_table_cell_properties(
 @require_google_service("slides", "slides")
 async def merge_table_cells(
     service,
-    user_google_email: str,
-    presentation_id: str,
+    user_google_email: str, presentation_id: str,
     object_id: str,
     table_range: Dict[str, Any],
 ) -> str:
@@ -641,8 +638,7 @@ async def merge_table_cells(
 @require_google_service("slides", "slides")
 async def unmerge_table_cells(
     service,
-    user_google_email: str,
-    presentation_id: str,
+    user_google_email: str, presentation_id: str,
     object_id: str,
     table_range: Dict[str, Any],
 ) -> str:
@@ -660,8 +656,7 @@ async def unmerge_table_cells(
 @require_google_service("slides", "slides")
 async def create_paragraph_bullets(
     service,
-    user_google_email: str,
-    presentation_id: str,
+    user_google_email: str, presentation_id: str,
     object_id: str,
     text_range: Dict[str, Any],
     bullet_preset: Optional[str] = None,
@@ -688,8 +683,7 @@ async def create_paragraph_bullets(
 @require_google_service("slides", "slides")
 async def delete_paragraph_bullets(
     service,
-    user_google_email: str,
-    presentation_id: str,
+    user_google_email: str, presentation_id: str,
     object_id: str,
     text_range: Dict[str, Any],
 ) -> str:
@@ -707,8 +701,7 @@ async def delete_paragraph_bullets(
 @require_google_service("slides", "slides")
 async def update_page_properties(
     service,
-    user_google_email: str,
-    presentation_id: str,
+    user_google_email: str, presentation_id: str,
     page_object_id: str,
     page_properties: Dict[str, Any],
     fields: str,
@@ -733,8 +726,7 @@ async def update_page_properties(
 @require_google_service("slides", "slides")
 async def update_page_element_transform(
     service,
-    user_google_email: str,
-    presentation_id: str,
+    user_google_email: str, presentation_id: str,
     object_id: str,
     transform: Dict[str, Any],
     apply_mode: str = "RELATIVE",
@@ -759,8 +751,7 @@ async def update_page_element_transform(
 @require_google_service("slides", "slides")
 async def update_image_properties(
     service,
-    user_google_email: str,
-    presentation_id: str,
+    user_google_email: str, presentation_id: str,
     object_id: str,
     image_properties: Dict[str, Any],
     fields: str,
@@ -785,9 +776,9 @@ async def update_image_properties(
 @require_google_service("slides", "slides")
 async def refresh_sheets_chart(
     service,
-    user_google_email: str,
-    presentation_id: str,
+    user_google_email: str, presentation_id: str,
     object_id: str,
+    user_id: Optional[str] = None
 ) -> str:
     """Refresh a linked Sheets chart element by its object id."""
     logger.info(f"[refresh_sheets_chart] Email='{user_google_email}', Presentation={presentation_id}, Object={object_id}")
@@ -803,10 +794,10 @@ async def refresh_sheets_chart(
 @require_google_service("slides", "slides")
 async def group_objects(
     service,
-    user_google_email: str,
-    presentation_id: str,
+    user_google_email: str, presentation_id: str,
     object_ids: List[str],
     group_object_id: Optional[str] = None,
+    user_id: Optional[str] = None,
 ) -> str:
     """Group multiple page elements into a single group object."""
     logger.info(f"[group_objects] Email='{user_google_email}', Presentation={presentation_id}, Count={len(object_ids)}")
@@ -826,9 +817,9 @@ async def group_objects(
 @require_google_service("slides", "slides")
 async def ungroup_objects(
     service,
-    user_google_email: str,
-    presentation_id: str,
+    user_google_email: str, presentation_id: str,
     group_object_id: str,
+    user_id: Optional[str] = None
 ) -> str:
     """Ungroup a group object back into individual elements."""
     logger.info(f"[ungroup_objects] Email='{user_google_email}', Presentation={presentation_id}, Group={group_object_id}")
@@ -844,11 +835,11 @@ async def ungroup_objects(
 @require_google_service("slides", "slides")
 async def create_sheets_chart(
     service,
-    user_google_email: str,
-    presentation_id: str,
+    user_google_email: str, presentation_id: str,
     spreadsheet_id: str,
     chart_id: int,
     element_properties: Dict[str, Any],
+    user_id: Optional[str] = None,
     linking_mode: Optional[str] = "LINKED",
     object_id: Optional[str] = None,
 ) -> str:
@@ -887,10 +878,10 @@ async def create_sheets_chart(
 @require_google_service("slides", "slides")
 async def update_sheets_chart_spec(
     service,
-    user_google_email: str,
-    presentation_id: str,
+    user_google_email: str, presentation_id: str,
     object_id: str,
     fields: str,
+    user_id: Optional[str] = None,
     spreadsheet_id: Optional[str] = None,
     chart_id: Optional[int] = None,
     linking_mode: Optional[str] = None,
@@ -923,10 +914,10 @@ async def update_sheets_chart_spec(
 @require_google_service("slides", "slides")
 async def replace_all_shapes_with_sheets_chart(
     service,
-    user_google_email: str,
-    presentation_id: str,
+    user_google_email: str, presentation_id: str,
     spreadsheet_id: str,
     chart_id: int,
+    user_id: Optional[str] = None,
     linking_mode: Optional[str] = "LINKED",
     contains_text: Optional[Dict[str, Any]] = None,
     page_object_ids: Optional[List[str]] = None,
@@ -964,10 +955,10 @@ async def replace_all_shapes_with_sheets_chart(
 @require_google_service("slides", "slides")
 async def replace_all_shapes_with_image(
     service,
-    user_google_email: str,
-    presentation_id: str,
+    user_google_email: str, presentation_id: str,
     image_url: str,
     image_replace_method: Optional[str] = None,
+    user_id: Optional[str] = None,
     contains_text: Optional[Dict[str, Any]] = None,
     page_object_ids: Optional[List[str]] = None,
 ) -> str:

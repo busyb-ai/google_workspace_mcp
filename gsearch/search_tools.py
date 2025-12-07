@@ -21,8 +21,8 @@ logger = logging.getLogger(__name__)
 @require_google_service("customsearch", "customsearch")
 async def search_custom(
     service,
-    user_google_email: str,
-    q: str,
+    user_google_email: str, q: str,user_id: Optional[str] = None,
+    
     num: int = 10,
     start: int = 1,
     safe: Literal["active", "moderate", "off"] = "off",
@@ -152,7 +152,7 @@ async def search_custom(
 @require_google_service("customsearch", "customsearch")
 async def get_search_engine_info(
     service,
-    user_google_email: str
+    user_google_email: str, user_id: Optional[str] = None
 ) -> str:
     """
     Retrieves metadata about a Programmable Search Engine.
@@ -223,6 +223,7 @@ async def search_custom_siterestrict(
     user_google_email: str,
     q: str,
     sites: List[str],
+    user_id: Optional[str] = None,
     num: int = 10,
     start: int = 1,
     safe: Literal["active", "moderate", "off"] = "off"

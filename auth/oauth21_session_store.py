@@ -292,77 +292,37 @@ class OAuth21SessionStore:
     
     def _load_credentials_from_file(self, user_email: str, user_id: Optional[str] = None) -> Optional[Credentials]:
         """
-        Load credentials from file system or S3.
+        Load credentials from file system or S3 using user_id.
         
-        Strategy:
-        1. If user_id is provided, try loading {user_id}.json directly
-        2. If not found or no user_id, scan credential files for matching email
+        Requires user_id to be provided for credential file lookup.
+        Email-based file searching has been removed - user_id is now the primary identifier.
         
         Supports both local file storage and S3 storage.
         
         Args:
-            user_email: User's email address
-            user_id: Optional user ID for direct file lookup
+            user_email: User's email address (for reference/logging)
+            user_id: User ID for credential file lookup (required)
             
         Returns:
             Credentials object or None
         """
         credentials_dir = get_default_credentials_dir()
         
-        # Strategy 1: Try direct lookup if user_id is provided
-        if user_id:
-            try:
-                credentials = load_credentials_from_file(user_id, credentials_dir)
-                if credentials:
-                    logger.info(f"Loaded credentials from file using user_id: {user_id}")
-                    return credentials
-            except Exception as e:
-                logger.debug(f"Could not load credentials using user_id {user_id}: {e}")
-        
-        # Strategy 2: Scan credential files for matching email (works for both S3 and local)
-        try:
-            logger.debug(f"Scanning credential files in {credentials_dir} for email: {user_email}")
-            
-            if is_s3_path(credentials_dir):
-                # Scan S3 bucket
-                try:
-                    json_files = s3_list_json_files(credentials_dir)
-                    for file_path in json_files:
-                        try:
-                            creds_data = s3_download_json(file_path)
-                            if creds_data.get("user_email") == user_email:
-                                logger.info(f"Found matching credential file in S3: {file_path}")
-                                return self._create_credentials_from_data(creds_data)
-                        except Exception as e:
-                            logger.debug(f"Error checking S3 file {file_path}: {e}")
-                            continue
-                except Exception as e:
-                    logger.error(f"Error scanning S3 bucket {credentials_dir}: {e}")
-            else:
-                # Scan local directory
-                if not os.path.exists(credentials_dir):
-                    logger.debug(f"Credentials directory does not exist: {credentials_dir}")
-                    return None
-                
-                for filename in os.listdir(credentials_dir):
-                    if filename.endswith('.json'):
-                        file_path = os.path.join(credentials_dir, filename)
-                        try:
-                            with open(file_path, 'r') as f:
-                                creds_data = json.load(f)
-                            
-                            if creds_data.get("user_email") == user_email:
-                                logger.info(f"Found matching credential file: {filename}")
-                                return self._create_credentials_from_data(creds_data)
-                        except Exception as e:
-                            logger.debug(f"Error reading credential file {filename}: {e}")
-                            continue
-            
-            logger.debug(f"No credential file found for email: {user_email}")
+        # Require user_id for file lookup
+        if not user_id:
+            logger.debug(f"Cannot load credentials from file - user_id not provided for {user_email}")
             return None
-            
+        
+        try:
+            credentials = load_credentials_from_file(user_id, credentials_dir)
+            if credentials:
+                logger.info(f"Loaded credentials from file using user_id: {user_id}")
+                return credentials
+            else:
+                logger.debug(f"No credential file found for user_id: {user_id}")
+                return None
         except Exception as e:
-            logger.error(f"Error scanning credential files for {user_email}: {e}")
+            logger.error(f"Error loading credentials using user_id {user_id}: {e}")
             return None
     
     def _create_credentials_from_data(self, creds_data: dict) -> Optional[Credentials]:
