@@ -16,7 +16,7 @@ from google.oauth2.credentials import Credentials
 from auth.oauth21_session_store import store_token_session
 from auth.google_auth import save_credentials_to_file
 from auth.scopes import get_current_scopes
-from core.config import WORKSPACE_MCP_BASE_URI, WORKSPACE_MCP_PORT
+from core.config import WORKSPACE_MCP_BASE_URI, WORKSPACE_MCP_PORT, get_oauth_redirect_uri, get_base_url
 
 logger = logging.getLogger(__name__)
 
@@ -92,10 +92,9 @@ async def handle_oauth_authorize(request: Request):
     
     # Set redirect_uri to our callback endpoint if not provided
     if "redirect_uri" not in params:
-        redirect_uri = f"{WORKSPACE_MCP_BASE_URI}:{WORKSPACE_MCP_PORT}/oauth2callback"
+        redirect_uri = get_oauth_redirect_uri()
         params["redirect_uri"] = redirect_uri
         logger.info(f"Constructed redirect_uri from config: {redirect_uri}")
-        logger.info(f"Config values - WORKSPACE_MCP_BASE_URI: {WORKSPACE_MCP_BASE_URI}, WORKSPACE_MCP_PORT: {WORKSPACE_MCP_PORT}")
     else:
         logger.info(f"Using provided redirect_uri: {params['redirect_uri']}")
 
@@ -294,15 +293,15 @@ async def handle_oauth_protected_resource(request: Request):
         )
 
     metadata = {
-        "resource": f"{WORKSPACE_MCP_BASE_URI}:{WORKSPACE_MCP_PORT}",
+        "resource": get_base_url(),
         "authorization_servers": [
-            f"{WORKSPACE_MCP_BASE_URI}:{WORKSPACE_MCP_PORT}"
+            get_base_url()
         ],
         "bearer_methods_supported": ["header"],
         "scopes_supported": get_current_scopes(),
         "resource_documentation": "https://developers.google.com/workspace",
         "client_registration_required": True,
-        "client_configuration_endpoint": f"{WORKSPACE_MCP_BASE_URI}:{WORKSPACE_MCP_PORT}/.well-known/oauth-client",
+        "client_configuration_endpoint": f"{get_base_url()}/.well-known/oauth-client",
     }
 
     return JSONResponse(
@@ -339,10 +338,10 @@ async def handle_oauth_authorization_server(request: Request):
                     metadata.setdefault("pkce_required", True)
 
                     # Override endpoints to use our proxies
-                    metadata["token_endpoint"] = f"{WORKSPACE_MCP_BASE_URI}:{WORKSPACE_MCP_PORT}/oauth2/token"
-                    metadata["authorization_endpoint"] = f"{WORKSPACE_MCP_BASE_URI}:{WORKSPACE_MCP_PORT}/oauth2/authorize"
+                    metadata["token_endpoint"] = f"{get_base_url()}/oauth2/token"
+                    metadata["authorization_endpoint"] = f"{get_base_url()}/oauth2/authorize"
                     metadata["enable_dynamic_registration"] = True
-                    metadata["registration_endpoint"] = f"{WORKSPACE_MCP_BASE_URI}:{WORKSPACE_MCP_PORT}/oauth2/register"
+                    metadata["registration_endpoint"] = f"{get_base_url()}/oauth2/register"
                     return JSONResponse(
                         content=metadata,
                         headers={
@@ -355,8 +354,8 @@ async def handle_oauth_authorization_server(request: Request):
         return JSONResponse(
             content={
                 "issuer": "https://accounts.google.com",
-                "authorization_endpoint": f"{WORKSPACE_MCP_BASE_URI}:{WORKSPACE_MCP_PORT}/oauth2/authorize",
-                "token_endpoint": f"{WORKSPACE_MCP_BASE_URI}:{WORKSPACE_MCP_PORT}/oauth2/token",
+                "authorization_endpoint": f"{get_base_url()}/oauth2/authorize",
+                "token_endpoint": f"{get_base_url()}/oauth2/token",
                 "userinfo_endpoint": "https://www.googleapis.com/oauth2/v2/userinfo",
                 "revocation_endpoint": "https://oauth2.googleapis.com/revoke",
                 "jwks_uri": "https://www.googleapis.com/oauth2/v3/certs",
@@ -406,9 +405,9 @@ async def handle_oauth_client_config(request: Request):
         content={
             "client_id": client_id,
             "client_name": "Google Workspace MCP Server",
-            "client_uri": f"{WORKSPACE_MCP_BASE_URI}:{WORKSPACE_MCP_PORT}",
+            "client_uri": get_base_url(),
             "redirect_uris": [
-                f"{WORKSPACE_MCP_BASE_URI}:{WORKSPACE_MCP_PORT}/oauth2callback",
+                get_oauth_redirect_uri(),
                 "http://localhost:5173/auth/callback"
             ],
             "grant_types": ["authorization_code", "refresh_token"],
@@ -455,7 +454,7 @@ async def handle_oauth_register(request: Request):
         redirect_uris = body.get("redirect_uris", [])
         if not redirect_uris:
             redirect_uris = [
-                f"{WORKSPACE_MCP_BASE_URI}:{WORKSPACE_MCP_PORT}/oauth2callback",
+                get_oauth_redirect_uri(),
                 "http://localhost:5173/auth/callback"
             ]
 
@@ -464,7 +463,7 @@ async def handle_oauth_register(request: Request):
             "client_id": client_id,
             "client_secret": client_secret,
             "client_name": body.get("client_name", "Google Workspace MCP Server"),
-            "client_uri": body.get("client_uri", f"{WORKSPACE_MCP_BASE_URI}:{WORKSPACE_MCP_PORT}"),
+            "client_uri": body.get("client_uri", get_base_url()),
             "redirect_uris": redirect_uris,
             "grant_types": body.get("grant_types", ["authorization_code", "refresh_token"]),
             "response_types": body.get("response_types", ["code"]),
@@ -474,7 +473,7 @@ async def handle_oauth_register(request: Request):
             # Additional OAuth 2.1 fields
             "client_id_issued_at": int(time.time()),
             "registration_access_token": "not-required",  # We don't implement client management
-            "registration_client_uri": f"{WORKSPACE_MCP_BASE_URI}:{WORKSPACE_MCP_PORT}/oauth2/register/{client_id}"
+            "registration_client_uri": f"{get_base_url()}/oauth2/register/{client_id}"
         }
 
         logger.info("Dynamic client registration successful - returning pre-configured Google credentials")

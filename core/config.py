@@ -26,7 +26,19 @@ def get_transport_mode() -> str:
     return _current_transport_mode
 
 
+def get_base_url() -> str:
+    """Get base URL for constructing endpoints.
+
+    For HTTPS URLs, we don't append the port since the ALB handles port mapping.
+    For HTTP URLs (typically local development), we include the port.
+    """
+    # If using HTTPS, don't append the port (ALB handles 443 -> 8000 mapping)
+    if WORKSPACE_MCP_BASE_URI.startswith("https://"):
+        return WORKSPACE_MCP_BASE_URI
+    # For HTTP (local development), include the port
+    return f"{WORKSPACE_MCP_BASE_URI}:{WORKSPACE_MCP_PORT}"
+
+
 def get_oauth_redirect_uri() -> str:
     """Get OAuth redirect URI based on current configuration."""
-    # Use the standard OAuth callback path
-    return f"{WORKSPACE_MCP_BASE_URI}:{WORKSPACE_MCP_PORT}/oauth2callback"
+    return f"{get_base_url()}/oauth2callback"
