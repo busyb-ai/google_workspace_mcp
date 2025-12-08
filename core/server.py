@@ -86,7 +86,10 @@ session_middleware = Middleware(MCPSessionMiddleware)
 # Custom FastMCP that adds CORS to streamable HTTP
 class CORSEnabledFastMCP(FastMCP):
     def streamable_http_app(self) -> "Starlette":
-        """Override to add CORS, session, and path prefix middleware to the app."""
+        """Override to add CORS and session middleware to the app.
+
+        Note: Path prefix stripping is handled in main.py when MCP_PATH_PREFIX is set.
+        """
         app = super().streamable_http_app()
         # Add session middleware first (to set context before other middleware)
         app.user_middleware.insert(0, session_middleware)
@@ -94,21 +97,6 @@ class CORSEnabledFastMCP(FastMCP):
         app.user_middleware.insert(1, cors_middleware)
         # Rebuild middleware stack
         app.middleware_stack = app.build_middleware_stack()
-
-        # Wrap with path prefix middleware if configured (must be outermost)
-        if PATH_PREFIX:
-            logger.info(f"Adding path prefix middleware for prefix: {PATH_PREFIX}")
-            final_app = PathPrefixMiddleware(app, PATH_PREFIX)
-            # Return a wrapper that behaves like Starlette but uses our middleware
-            class WrappedApp(Starlette):
-                def __init__(self, inner_app):
-                    self._inner = inner_app
-                async def __call__(self, scope, receive, send):
-                    await self._inner(scope, receive, send)
-            wrapped = WrappedApp(final_app)
-            wrapped.routes = app.routes  # Preserve routes for introspection
-            logger.info("Added session, CORS, and path prefix middleware to streamable HTTP app")
-            return wrapped
 
         logger.info("Added session and CORS middleware to streamable HTTP app")
         return app
