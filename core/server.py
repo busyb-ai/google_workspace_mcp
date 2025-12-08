@@ -40,6 +40,33 @@ logger = logging.getLogger(__name__)
 
 _auth_provider: Optional[Union[GoogleWorkspaceAuthProvider, GoogleRemoteAuthProvider]] = None
 
+# --- Path Prefix Stripping ---
+# When running behind ALB with path-based routing (e.g., /google-workspace/*),
+# the ALB forwards the full path but our routes expect paths without the prefix.
+# This middleware strips the configurable prefix from incoming requests.
+PATH_PREFIX = os.getenv("MCP_PATH_PREFIX", "")  # e.g., "/google-workspace"
+
+class PathPrefixMiddleware:
+    """ASGI middleware to strip a path prefix from incoming requests."""
+    def __init__(self, app, prefix: str):
+        self.app = app
+        self.prefix = prefix.rstrip("/") if prefix else ""
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http" and self.prefix:
+            path = scope.get("path", "")
+            if path.startswith(self.prefix):
+                # Strip the prefix
+                scope = dict(scope)
+                scope["path"] = path[len(self.prefix):] or "/"
+                # Also update raw_path if present
+                raw_path = scope.get("raw_path")
+                if raw_path:
+                    raw_path_str = raw_path.decode("latin-1")
+                    if raw_path_str.startswith(self.prefix):
+                        scope["raw_path"] = (raw_path_str[len(self.prefix):] or "/").encode("latin-1")
+        await self.app(scope, receive, send)
+
 # --- Middleware Definitions ---
 cors_middleware = Middleware(
     CORSMiddleware,
@@ -59,7 +86,7 @@ session_middleware = Middleware(MCPSessionMiddleware)
 # Custom FastMCP that adds CORS to streamable HTTP
 class CORSEnabledFastMCP(FastMCP):
     def streamable_http_app(self) -> "Starlette":
-        """Override to add CORS and session middleware to the app."""
+        """Override to add CORS, session, and path prefix middleware to the app."""
         app = super().streamable_http_app()
         # Add session middleware first (to set context before other middleware)
         app.user_middleware.insert(0, session_middleware)
@@ -67,6 +94,22 @@ class CORSEnabledFastMCP(FastMCP):
         app.user_middleware.insert(1, cors_middleware)
         # Rebuild middleware stack
         app.middleware_stack = app.build_middleware_stack()
+
+        # Wrap with path prefix middleware if configured (must be outermost)
+        if PATH_PREFIX:
+            logger.info(f"Adding path prefix middleware for prefix: {PATH_PREFIX}")
+            final_app = PathPrefixMiddleware(app, PATH_PREFIX)
+            # Return a wrapper that behaves like Starlette but uses our middleware
+            class WrappedApp(Starlette):
+                def __init__(self, inner_app):
+                    self._inner = inner_app
+                async def __call__(self, scope, receive, send):
+                    await self._inner(scope, receive, send)
+            wrapped = WrappedApp(final_app)
+            wrapped.routes = app.routes  # Preserve routes for introspection
+            logger.info("Added session, CORS, and path prefix middleware to streamable HTTP app")
+            return wrapped
+
         logger.info("Added session and CORS middleware to streamable HTTP app")
         return app
 
