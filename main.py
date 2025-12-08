@@ -205,8 +205,19 @@ def main():
         safe_print("")
 
         if args.transport == 'streamable-http':
-            # The server has CORS middleware built-in via CORSEnabledFastMCP
-            server.run(transport="streamable-http", host="0.0.0.0", port=port)
+            # Check for path prefix configuration (for running behind ALB with path-based routing)
+            path_prefix = os.getenv("MCP_PATH_PREFIX", "")
+            if path_prefix:
+                safe_print(f"🔧 Path prefix stripping enabled: {path_prefix}")
+                # Run uvicorn directly with a path-stripping middleware
+                import uvicorn
+                from core.server import PathPrefixMiddleware
+                app = server.streamable_http_app()
+                wrapped_app = PathPrefixMiddleware(app, path_prefix)
+                uvicorn.run(wrapped_app, host="0.0.0.0", port=port)
+            else:
+                # The server has CORS middleware built-in via CORSEnabledFastMCP
+                server.run(transport="streamable-http", host="0.0.0.0", port=port)
         else:
             server.run()
     except KeyboardInterrupt:
