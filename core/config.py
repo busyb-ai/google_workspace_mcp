@@ -40,5 +40,14 @@ def get_base_url() -> str:
 
 
 def get_oauth_redirect_uri() -> str:
-    """Get OAuth redirect URI based on current configuration."""
+    """Get OAuth redirect URI based on current configuration.
+
+    Priority:
+    1. GOOGLE_OAUTH_REDIRECT_URI environment variable (for production ALB routing)
+    2. Constructed from base URL + /oauth2callback
+    """
+    # Check for explicit redirect URI (used in production behind ALB)
+    env_redirect_uri = os.getenv("GOOGLE_OAUTH_REDIRECT_URI")
+    if env_redirect_uri:
+        return env_redirect_uri
     return f"{get_base_url()}/oauth2callback"

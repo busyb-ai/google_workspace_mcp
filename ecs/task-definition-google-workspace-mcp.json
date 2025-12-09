@@ -41,6 +41,18 @@
         {
           "name": "OAUTHLIB_INSECURE_TRANSPORT",
           "value": "0"
+        },
+        {
+          "name": "GOOGLE_MCP_CREDENTIALS_DIR",
+          "value": "s3://busyb-oauth-tokens-758888582357/tokens/google"
+        },
+        {
+          "name": "MCP_PATH_PREFIX",
+          "value": "/google-workspace"
+        },
+        {
+          "name": "GOOGLE_OAUTH_REDIRECT_URI",
+          "value": "https://api.busyb.ai/google-workspace/oauth2callback"
         }
       ],
       "secrets": [
@@ -51,10 +63,6 @@
         {
           "name": "GOOGLE_OAUTH_CLIENT_SECRET",
           "valueFrom": "arn:aws:secretsmanager:us-east-1:758888582357:secret:busyb/google-oauth-client-secret-mMQs8z:GOOGLE_OAUTH_CLIENT_SECRET::"
-        },
-        {
-          "name": "GOOGLE_MCP_CREDENTIALS_DIR",
-          "valueFrom": "arn:aws:secretsmanager:us-east-1:758888582357:secret:busyb/s3-credentials-bucket-Ba31ZM"
         }
       ],
       "logConfiguration": {
