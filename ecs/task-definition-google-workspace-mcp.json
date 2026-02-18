@@ -28,7 +28,7 @@
         },
         {
           "name": "WORKSPACE_MCP_BASE_URI",
-          "value": "http://google-workspace.busyb.local"
+          "value": "https://api.busyb.ai/google-workspace"
         },
         {
           "name": "MCP_ENABLE_OAUTH21",
