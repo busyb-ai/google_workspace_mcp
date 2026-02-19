@@ -79,10 +79,12 @@ class GoogleRemoteAuthProvider(RemoteAuthProvider):
         
         # Initialize RemoteAuthProvider with local server as the authorization server
         # This ensures OAuth discovery points to our proxy endpoints instead of Google directly
+        # For HTTPS (production behind ALB), don't append port; for HTTP (local dev), include it
+        server_url = self.base_url if self.base_url.startswith("https://") else f"{self.base_url}:{self.port}"
         super().__init__(
             token_verifier=token_verifier,
-            authorization_servers=[AnyHttpUrl(f"{self.base_url}:{self.port}")],
-            resource_server_url=f"{self.base_url}:{self.port}"
+            authorization_servers=[AnyHttpUrl(server_url)],
+            resource_server_url=server_url
         )
         
         logger.debug("GoogleRemoteAuthProvider initialized")
