@@ -206,6 +206,11 @@ def save_credentials_to_file(
         "user_email": user_google_email,  # Store email in the file for reference
     }
 
+    # Preserve id_token if present (needed for email extraction downstream)
+    id_token = getattr(credentials, "id_token", None)
+    if id_token:
+        creds_data["id_token"] = id_token
+
     try:
         if is_s3_path(creds_path):
             # Upload to S3

@@ -33,6 +33,7 @@ async def get_authenticated_google_service_oauth21(
     session_id: Optional[str] = None,
     auth_token_email: Optional[str] = None,
     allow_recent_auth: bool = False,
+    user_id: Optional[str] = None,
 ) -> tuple[Any, str]:
     """
     OAuth 2.1 authentication using the session store with security validation.
@@ -47,7 +48,8 @@ async def get_authenticated_google_service_oauth21(
         requested_user_email=user_google_email,
         session_id=session_id,
         auth_token_email=auth_token_email,
-        allow_recent_auth=allow_recent_auth
+        allow_recent_auth=allow_recent_auth,
+        user_id=user_id,
     )
 
     if not credentials:
@@ -367,6 +369,7 @@ def require_google_service(
                             session_id=mcp_session_id,
                             auth_token_email=authenticated_user,
                             allow_recent_auth=False,
+                            user_id=user_id,
                         )
                     else:
                         # If OAuth 2.1 is not enabled, always use the legacy authentication method.
@@ -447,6 +450,22 @@ def require_multiple_services(service_configs: List[Dict[str, Any]]):
             if not user_google_email:
                 raise Exception("user_google_email parameter is required but not found")
 
+            # Extract user_id from arguments or context
+            user_id = kwargs.get('user_id')
+            if not user_id:
+                try:
+                    user_id_index = param_names.index('user_id')
+                    if user_id_index < len(args):
+                        user_id = args[user_id_index]
+                except ValueError:
+                    pass
+            if not user_id:
+                try:
+                    from core.context import get_user_id
+                    user_id = get_user_id()
+                except Exception:
+                    pass
+
             # Authenticate all services
             for config in service_configs:
                 service_type = config["service_type"]
@@ -495,6 +514,7 @@ def require_multiple_services(service_configs: List[Dict[str, Any]]):
                             session_id=mcp_session_id,
                             auth_token_email=authenticated_user,
                             allow_recent_auth=False,
+                            user_id=user_id,
                         )
                     else:
                         # If OAuth 2.1 is not enabled, always use the legacy authentication method.
